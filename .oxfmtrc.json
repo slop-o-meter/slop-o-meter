@@ -1,0 +1,17 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "printWidth": 80,
+  "sortImports": {
+    "newlinesBetween": false
+  },
+  "overrides": [
+    {
+      "files": ["*.yml"],
+      "options": { "printWidth": 120 }
+    },
+    {
+      "files": ["*.md", "*.mdx"],
+      "options": { "proseWrap": "always" }
+    }
+  ]
+}

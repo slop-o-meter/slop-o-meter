@@ -1,0 +1,120 @@
+name: PR
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, closed]
+
+jobs:
+  qa:
+    name: QA Checks
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Enable corepack
+        run: corepack enable
+      - name: Install dependencies
+        run: yarn install --immutable --check-cache --refresh-lockfile
+      - name: Install Playwright
+        run: yarn playwright install --with-deps
+      - name: Check formatting
+        run: yarn check-formatting
+      - name: Check linting
+        run: yarn check-linting
+      - name: Check types
+        run: yarn check-types
+      - name: Test
+        run: yarn test
+
+  deploy-preview:
+    name: Deploy Preview
+    needs: qa
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-24.04-arm
+    environment: preview
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Enable corepack
+        run: corepack enable
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: eu-central-1
+      - name: Install dependencies
+        run: yarn install --immutable --check-cache --refresh-lockfile
+      - name: Build
+        run: yarn build
+      - name: Deploy
+        run: yarn workspace @slop-o-meter/infra deploy --all --context stage=pr-${{ github.event.pull_request.number }} --context hostedZoneId=${{ vars.HOSTED_ZONE_ID }}
+      - name: Comment preview URL
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const prNumber = context.payload.pull_request.number;
+            const previewUrl = `https://pr-${prNumber}.preview.slop-o-meter.dev`;
+            const body = `### Preview Deployment\n\nPreview: ${previewUrl}`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            });
+
+            const existingComment = comments.find(comment =>
+              comment.body.includes('### Preview Deployment')
+            );
+
+            if (existingComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body,
+              });
+            }
+
+  destroy-preview:
+    name: Destroy Preview
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    environment: preview
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Enable corepack
+        run: corepack enable
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: eu-central-1
+      - name: Install dependencies
+        run: yarn install --immutable --check-cache --refresh-lockfile
+      - name: Build
+        run: yarn build
+      - name: Destroy
+        run: yarn workspace @slop-o-meter/infra cdk destroy --all --context stage=pr-${{ github.event.pull_request.number }} --context hostedZoneId=${{ vars.HOSTED_ZONE_ID }} --force

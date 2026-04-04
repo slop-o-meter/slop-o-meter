@@ -1,0 +1,63 @@
+@import url("https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700;800;900&family=Space+Mono:wght@400;700&family=Space+Grotesk:wght@400;700&display=swap");
+
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --cream: #faf4ea;
+  --page-bg: #faf5ec;
+  --card-bg: #c8e4e0;
+  --sand: #ede3d3;
+  --peach: #efc4ae;
+  --pink: #dd8e8e;
+  --mint: #8dbfa8;
+  --sky: #8ab8d0;
+  --mustard: #d4a843;
+  --terracotta: #c06842;
+  --ragu: #8b2500;
+  --buttered-noodles: #ccaa38;
+  --brown: #3a2820;
+  --brown-mid: #7a6050;
+  --brown-light: #a89080;
+
+  --level-1: #3a8a68;
+  --level-2: #3a7a9a;
+  --level-3: #9a7a20;
+  --level-4: #c06a28;
+  --level-5: #b84040;
+
+  --border: 2px solid var(--brown);
+  --border-thick: 3px solid var(--brown);
+  --shadow: 4px 4px 0 rgba(58, 40, 32, 0.2);
+  --shadow-lg: 6px 6px 0 rgba(58, 40, 32, 0.15);
+
+  --mono: "Space Mono", "Courier New", monospace;
+  --sans: "Space Grotesk", -apple-system, sans-serif;
+  --display: "Jost", "Futura", -apple-system, sans-serif;
+}
+
+a {
+  color: var(--ragu);
+}
+
+a:visited {
+  color: color-mix(in srgb, var(--ragu) 60%, var(--terracotta));
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--page-bg);
+  color: var(--brown);
+  font-family: var(--mono);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}

@@ -1,0 +1,17 @@
+{
+  "include": ["bin/**/*.ts", "lib/**/*.ts"],
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "NodeNext",
+    "moduleResolution": "nodenext",
+    "lib": ["ESNext"],
+    "types": ["node"],
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "strict": true,
+    "skipLibCheck": true
+  }
+}

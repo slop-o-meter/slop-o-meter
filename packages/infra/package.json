@@ -1,0 +1,21 @@
+{
+  "name": "@slop-o-meter/infra",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "synth": "cdk synth",
+    "diff": "cdk diff",
+    "deploy": "cdk deploy --all --require-approval never",
+    "cdk": "cdk"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.248.0",
+    "constructs": "^10.6.0"
+  },
+  "devDependencies": {
+    "aws-cdk": "^2.1117.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2"
+  }
+}

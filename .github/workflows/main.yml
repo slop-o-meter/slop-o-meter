@@ -1,0 +1,56 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  qa:
+    name: QA Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Enable corepack
+        run: corepack enable
+      - name: Install dependencies
+        run: yarn install --immutable --check-cache --refresh-lockfile
+      - name: Install Playwright
+        run: yarn playwright install --with-deps
+      - name: Check formatting
+        run: yarn check-formatting
+      - name: Check linting
+        run: yarn check-linting
+      - name: Check types
+        run: yarn check-types
+      - name: Test
+        run: yarn test
+
+  deploy:
+    name: Deploy to AWS
+    needs: qa
+    runs-on: ubuntu-24.04-arm
+    environment: production
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - name: Enable corepack
+        run: corepack enable
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: eu-central-1
+      - name: Install dependencies
+        run: yarn install --immutable --check-cache --refresh-lockfile
+      - name: Build
+        run: yarn build
+      - name: Deploy
+        run: yarn workspace @slop-o-meter/infra deploy --context hostedZoneId=${{ vars.HOSTED_ZONE_ID }}

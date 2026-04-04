@@ -1,0 +1,188 @@
+import { DateTime } from "luxon";
+import aggregateCommits, {
+  type ContributorProfile,
+  type WeeklyData,
+} from "./aggregation.js";
+import type { Session } from "./sessions.js";
+import type Commit from "./types.js";
+
+// --- Constants ---
+
+const BOOTSTRAP_THRESHOLD = 5_000;
+const COMPLEXITY_WEIGHT = 0.05;
+const LINES_PER_HOUR = 40;
+const CORE_RAMP_START = 10;
+const CORE_RAMP_END = 60;
+
+// --- Main Entry Point ---
+
+export default function toMeasurement(
+  commits: Commit[],
+  sessions: Session[],
+  excludedHashes: Set<string> = new Set(),
+): { currentScore: number; history: { week: string; score: number }[] } {
+  const { weeklyData, contributorProfiles } = aggregateCommits(
+    commits,
+    excludedHashes,
+  );
+  const completeWeeklyData = fillWeekGaps(weeklyData);
+
+  if (completeWeeklyData.length === 0) {
+    return { currentScore: 0, history: [] };
+  }
+
+  // Pre-compute session hours per week, weighted by contributor core factor
+  const weeklyEffectiveHours = computeWeeklyEffectiveHours(
+    sessions,
+    contributorProfiles,
+  );
+
+  let cumulativeSlop = 0;
+  let cumulativeRawLines = 0;
+  let cumulativeDampenedLines = 0;
+
+  const history = completeWeeklyData.map((weekData) => {
+    // Total additions/deletions include both normal and excluded commits.
+    // Excluded commits contribute to codebase size but not to excess.
+    const totalAdditions =
+      weekData.weightedAdditions + weekData.excludedAdditions;
+    const totalDeletions =
+      weekData.weightedDeletions + weekData.excludedDeletions;
+
+    // Step 1: Apply codebase size dampening to compute attention cost.
+    // Dampening uses the raw cumulative size (not dampened) to avoid
+    // circular dependency where dampening prevents codebase growth.
+    const sizeDampening = computeSizeDampening(cumulativeRawLines);
+    const netAdditions = Math.max(
+      0,
+      weekData.weightedAdditions - weekData.weightedDeletions,
+    );
+    const attentionCost = netAdditions * sizeDampening;
+
+    // Step 2: Compute attention spent from session time
+    const effectiveHours = weeklyEffectiveHours.get(weekData.week) ?? 0;
+    const attentionSpent = effectiveHours * LINES_PER_HOUR;
+
+    // Step 3: Compute excess (slop for this week)
+    const excess = Math.max(0, attentionCost - attentionSpent);
+
+    // Step 4: Update cumulative totals (using total lines for size tracking)
+    cumulativeRawLines = Math.max(
+      0,
+      cumulativeRawLines + totalAdditions - totalDeletions,
+    );
+    cumulativeDampenedLines = Math.max(
+      0,
+      cumulativeDampenedLines +
+        Math.max(0, totalAdditions - totalDeletions) * sizeDampening,
+    );
+    cumulativeSlop = Math.max(0, cumulativeSlop + excess);
+
+    // Step 5: Compute score as ratio (0 to 1).
+    // Use dampened lines as denominator so the ratio stays consistent:
+    // both numerator (slop) and denominator (total cost) include dampening.
+    const score =
+      cumulativeDampenedLines > 0
+        ? cumulativeSlop / cumulativeDampenedLines
+        : 0;
+
+    return { week: weekData.week, score };
+  });
+
+  const currentScore =
+    history.length > 0 ? history[history.length - 1]!.score : 0;
+
+  return { currentScore, history };
+}
+
+// --- Codebase Size Dampening ---
+
+function computeSizeDampening(cumulativeWeightedLines: number): number {
+  const bootstrap = Math.min(1, cumulativeWeightedLines / BOOTSTRAP_THRESHOLD);
+  const complexityBonus =
+    COMPLEXITY_WEIGHT * Math.log2(1 + cumulativeWeightedLines / 100_000);
+  return bootstrap + complexityBonus;
+}
+
+// --- Effective Hours (Session Time × Core Factor) ---
+
+function computeWeeklyEffectiveHours(
+  sessions: Session[],
+  contributorProfiles: Map<string, ContributorProfile>,
+): Map<string, number> {
+  const weekHours = new Map<string, number>();
+
+  for (const session of sessions) {
+    const week = `${String(session.startTime.weekYear)}-W${String(session.startTime.weekNumber).padStart(2, "0")}`;
+    const coreFactor = computeCoreFactor(
+      contributorProfiles.get(session.author),
+    );
+    const effectiveHours = session.durationHours * coreFactor;
+    weekHours.set(week, (weekHours.get(week) ?? 0) + effectiveHours);
+  }
+
+  return weekHours;
+}
+
+// --- Core Factor ---
+
+function computeCoreFactor(profile: ContributorProfile | undefined): number {
+  if (!profile) {
+    return 0;
+  }
+
+  const ramp = Math.min(
+    1,
+    Math.max(
+      0,
+      (profile.totalCommits - CORE_RAMP_START) /
+        (CORE_RAMP_END - CORE_RAMP_START),
+    ),
+  );
+
+  const veteranMultiplier = 1 + 0.25 * profile.commitShare;
+
+  return ramp * veteranMultiplier;
+}
+
+// --- Week Gap Filling ---
+
+const EMPTY_WEEK: Omit<WeeklyData, "week"> = {
+  weightedAdditions: 0,
+  weightedDeletions: 0,
+  excludedAdditions: 0,
+  excludedDeletions: 0,
+  activeContributors: [],
+};
+
+function fillWeekGaps(weeklyData: WeeklyData[]): WeeklyData[] {
+  if (weeklyData.length <= 1) {
+    return weeklyData;
+  }
+
+  const firstWeek = weeklyData[0]!.week;
+  const lastWeek = weeklyData[weeklyData.length - 1]!.week;
+  const allWeeks = generateIsoWeekRange(firstWeek, lastWeek);
+
+  const dataByWeek = new Map<string, WeeklyData>();
+  for (const week of weeklyData) {
+    dataByWeek.set(week.week, week);
+  }
+
+  return allWeeks.map(
+    (week) => dataByWeek.get(week) ?? { ...EMPTY_WEEK, week },
+  );
+}
+
+function generateIsoWeekRange(startWeek: string, endWeek: string): string[] {
+  const weeks: string[] = [];
+  let current = DateTime.fromISO(startWeek);
+  const end = DateTime.fromISO(endWeek);
+  while (current <= end) {
+    weeks.push(
+      `${String(current.weekYear)}-W${String(current.weekNumber).padStart(2, "0")}`,
+    );
+    current = current.plus({ weeks: 1 });
+  }
+  return weeks;
+}
