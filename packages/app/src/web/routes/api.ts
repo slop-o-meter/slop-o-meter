@@ -23,7 +23,7 @@ api.use("/*", async (context, next) => {
 
 const measureRateLimit = rateLimiter({
   windowMs: 60_000,
-  maxRequests: 10,
+  maxRequests: 3,
 });
 
 api.post("/measure", measureRateLimit, async (context) => {
