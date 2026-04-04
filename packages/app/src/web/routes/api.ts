@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { DateTime } from "luxon";
+import rateLimiter from "../rateLimiter.js";
 import type WebEnv from "../webEnv.js";
 
 const SAFE_PATH_SEGMENT = /^[a-zA-Z0-9._-]+$/;
@@ -20,7 +21,12 @@ api.use("/*", async (context, next) => {
   await next();
 });
 
-api.post("/measure", async (context) => {
+const measureRateLimit = rateLimiter({
+  windowMs: 60_000,
+  maxRequests: 10,
+});
+
+api.post("/measure", measureRateLimit, async (context) => {
   const body = await context.req.json<{
     owner: string;
     repo: string;
