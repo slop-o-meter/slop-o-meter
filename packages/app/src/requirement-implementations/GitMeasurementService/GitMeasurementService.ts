@@ -19,6 +19,7 @@ export default class GitMeasurementService implements MeasurementService {
       openrouterApiKey: string;
       openrouterModel: string;
       openrouterBaseUrl: string;
+      minimumCommits?: number;
       onProgress?: (
         phase: ProgressPhase,
         progress?: { current: number; total: number },
@@ -63,6 +64,7 @@ export default class GitMeasurementService implements MeasurementService {
       const gitMeasurement = createGitMeasurement({
         onProgress: this.options.onProgress,
         outlierClassifier,
+        minimumCommits: this.options.minimumCommits,
       });
       const result = await gitMeasurement.measure(
         cloneUrl,

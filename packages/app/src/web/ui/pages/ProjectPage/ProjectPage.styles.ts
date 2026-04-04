@@ -88,6 +88,15 @@ export const errorViewClass = css`
   display: contents;
 `;
 
+export const errorViewActionsClass = css`
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  & > a {
+    color: white;
+  }
+`;
+
 export const errorViewStatusClass = css`
   font-family: var(--mono);
   font-size: 0.85rem;
@@ -162,9 +171,12 @@ export const disclaimerClass = css`
 
 export const actionButtonClass = css`
   background: var(--brown);
-  color: var(--cream);
+  color: white;
   border: var(--border-thick);
-  padding: 0.75rem 2rem;
+  padding: 0.75rem 0.75rem;
+  white-space: nowrap;
+  min-width: 10.5rem;
+  text-align: center;
   font-family: var(--mono);
   font-weight: 700;
   font-size: 0.85rem;
@@ -174,6 +186,7 @@ export const actionButtonClass = css`
   border-radius: 60px;
   box-shadow: var(--shadow);
   margin-top: 1rem;
+  text-decoration: none;
   &:hover {
     background: #4a3830;
   }

@@ -1,6 +1,7 @@
 import { DateTime } from "luxon";
 import type { Project } from "../../../../types.js";
 import componentAsset from "../../componentAsset.js";
+import Footer from "../../components/Footer/Footer.js";
 import HistoryCharts from "../../components/HistoryCharts/HistoryCharts.js";
 import ProjectCard from "../../components/ProjectCard/ProjectCard.js";
 import { scoreToDisplay, scoreToLevel } from "../../utils/scoring.js";
@@ -12,6 +13,7 @@ import {
   measurementViewChartsSectionClass,
   measurementViewClass,
   disclaimerClass,
+  errorViewActionsClass,
   errorViewClass,
   errorViewStatusClass,
   notMeasuredCommentClass,
@@ -38,7 +40,8 @@ export default function ProjectPage({ owner, repo, project }: Props) {
         data-owner={owner}
         data-repo={repo}
       >
-        {project?.measurementStatus === "Running" &&
+        {(project?.measurementStatus === "Running" ||
+          project?.measurementStatus === "Error") &&
         !project.measurement ? null : (
           <a href="/" class={backLinkClass}>
             <svg
@@ -67,6 +70,8 @@ export default function ProjectPage({ owner, repo, project }: Props) {
           <MeasurementView project={project} />
         ) : null}
       </div>
+      <Footer />
+
       <script src={componentAsset("ProjectPage.client.js")} defer />
     </>
   );
@@ -146,9 +151,14 @@ function ErrorView({ errorReason }: { errorReason: string | null }) {
       <p class={errorViewStatusClass}>
         {errorReason ? `${errorReason}.` : "Measurement failed."}
       </p>
-      <button class={actionButtonClass} type="button" data-action="measure">
-        Retry
-      </button>
+      <div class={errorViewActionsClass}>
+        <button class={actionButtonClass} type="button" data-action="measure">
+          Retry
+        </button>
+        <a href="/" class={actionButtonClass}>
+          Try other repo
+        </a>
+      </div>
     </div>
   );
 }
@@ -195,8 +205,8 @@ function MeasurementView({ project }: { project: Project }) {
         ) : null}
       </div>
       <p class={disclaimerClass}>
-        This score is the result of a naïve algorithm measuring indirect
-        signals. Take it with a large grain of salt.
+        This score is the result of a rather primitive algorithm measuring
+        indirect signals. Take it with a large grain of salt.
       </p>
     </>
   );

@@ -1,5 +1,6 @@
 import type { Project } from "../../../../types.js";
 import componentAsset from "../../componentAsset.js";
+import Footer from "../../components/Footer/Footer.js";
 import ProjectCard from "../../components/ProjectCard/ProjectCard.js";
 import SlopScale from "../../components/SlopScale/SlopScale.js";
 import { scoreToDisplay, scoreToLevel } from "../../utils/scoring.js";
@@ -151,10 +152,9 @@ export default function HomePage({ highlightedProjects }: Props) {
 
       <section class={sectionClass}>
         <h2 class={sectionHeaderClass}>
-          How Would <em>You</em> Measure Slop?
+          Can <em>You</em> Make a Better Algorithm?
         </h2>
         <p class={sectionTextClass}>
-          Wanna take a stab at a better algorithm?{" "}
           <a href="https://github.com/slop-o-meter/slop-o-meter">
             Hop over to GitHub
           </a>
@@ -162,6 +162,8 @@ export default function HomePage({ highlightedProjects }: Props) {
           where you can test your theories.
         </p>
       </section>
+
+      <Footer />
 
       <script src={componentAsset("HomePage.client.js")} defer />
     </>

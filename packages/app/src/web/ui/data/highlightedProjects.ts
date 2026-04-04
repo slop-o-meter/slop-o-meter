@@ -1,6 +1,6 @@
 const HIGHLIGHTED_PROJECTS = [
   { owner: "facebook", repo: "react" },
-  { owner: "superegodev", repo: "superego" },
+  { owner: "pingdotgg", repo: "t3code" },
   { owner: "openclaw", repo: "openclaw" },
 ] as const;
 

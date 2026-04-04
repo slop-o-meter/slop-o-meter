@@ -55,7 +55,7 @@ configurations or demo data.
 The algorithm tries to account for some of these exceptions, but it seems that,
 ultimately, the two measures we're using are just too indirect.
 
-## How Would _You_ Measure Slop?
+## Can _You_ Make a Better Algorithm?
 
-Wanna take a stab at a better algorithm? Open a PR, and you'll get (pending
-approval) a preview environment where you can test your theories.
+Open a PR, and you'll get (pending approval) a preview environment where you can
+test your theories.

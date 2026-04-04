@@ -31,6 +31,7 @@ interface GitMeasurementOptions {
     progress?: { current: number; total: number },
   ) => void | Promise<void>;
   outlierClassifier?: OutlierClassifier;
+  minimumCommits?: number;
 }
 
 interface GitMeasurementResult {
@@ -64,6 +65,15 @@ export default function createGitMeasurement(
       const toolIgnore = await buildIgnore(workDir);
       const gitLogOutput = await exec(getCommand(workDir));
       const allCommits = parseCommits(gitLogOutput, toolIgnore);
+
+      if (
+        options?.minimumCommits !== undefined &&
+        allCommits.length < options.minimumCommits
+      ) {
+        throw new Error(
+          `Not enough commits: repository has ${allCommits.length} commits but the minimum is ${options.minimumCommits}`,
+        );
+      }
 
       // Detect outlier commits
       let outlierClassifications: ClassifiedCommit[] = [];

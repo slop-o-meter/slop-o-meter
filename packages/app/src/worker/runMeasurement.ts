@@ -7,6 +7,7 @@ import type { ProjectRepository } from "../requirements/ProjectRepository.js";
 import type { MeasurementPhase } from "../types.js";
 
 const LARGE_REPO_THRESHOLD_KB = 100 * 1024; // 100 MB
+const MINIMUM_COMMITS_THRESHOLD = 50;
 
 const PHASE_MAP: Record<ProgressPhase, MeasurementPhase> = {
   cloning: "CloningRepo",
@@ -28,6 +29,7 @@ export default async function runMeasurement(
       openrouterApiKey: config.openrouterApiKey,
       openrouterModel: config.openrouterModel,
       openrouterBaseUrl: config.openrouterBaseUrl,
+      minimumCommits: MINIMUM_COMMITS_THRESHOLD,
       onProgress: async (phase, progress) => {
         await projectRepository.setPhase(
           owner,
@@ -81,6 +83,9 @@ function classifyError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   const lower = message.toLowerCase();
 
+  if (lower.includes("not enough commits")) {
+    return "The repo has too few commits";
+  }
   if (lower.includes("repository not found") || lower.includes("not found")) {
     return "Repository not found";
   }
