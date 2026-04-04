@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm } from "node:fs/promises";
+import { lstat, mkdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type {
@@ -75,7 +75,11 @@ export default class GitMeasurementService implements MeasurementService {
 
       let readmeExcerpt = "";
       try {
-        readmeExcerpt = await readFile(`${repoPath}/README.md`, "utf-8");
+        const readmePath = `${repoPath}/README.md`;
+        const readmeStat = await lstat(readmePath);
+        if (readmeStat.isFile()) {
+          readmeExcerpt = await readFile(readmePath, "utf-8");
+        }
       } catch {
         // No README found
       }
