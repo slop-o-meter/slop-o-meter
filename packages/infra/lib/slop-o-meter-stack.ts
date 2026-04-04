@@ -47,6 +47,12 @@ export default class SlopOMeterStack extends cdk.Stack {
           ? cdk.RemovalPolicy.RETAIN
           : cdk.RemovalPolicy.DESTROY,
       autoDeleteObjects: stage !== "production",
+      lifecycleRules: [
+        {
+          prefix: "rate-limits/",
+          expiration: cdk.Duration.days(1),
+        },
+      ],
     });
 
     const deadLetterQueue = new sqs.Queue(this, "MeasurementDeadLetterQueue", {
@@ -99,6 +105,7 @@ export default class SlopOMeterStack extends cdk.Stack {
     });
 
     dataBucket.grantReadWrite(httpHandler, "projects/*");
+    dataBucket.grantReadWrite(httpHandler, "rate-limits/*");
     measurementQueue.grantSendMessages(httpHandler);
     httpHandler.addToRolePolicy(
       new iam.PolicyStatement({

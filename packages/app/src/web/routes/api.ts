@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { DateTime } from "luxon";
+import rateLimiter from "../rateLimiter.js";
 import type WebEnv from "../webEnv.js";
 
 const SAFE_PATH_SEGMENT = /^[a-zA-Z0-9._-]+$/;
@@ -20,33 +21,51 @@ api.use("/*", async (context, next) => {
   await next();
 });
 
-api.post("/measure", async (context) => {
-  const body = await context.req.json<{
-    owner: string;
-    repo: string;
-  }>();
-  const owner = validateSegment(body.owner);
-  const repo = validateSegment(body.repo);
+const measureRateLimit = process.env.DATA_BUCKET_NAME
+  ? rateLimiter({
+      bucketName: process.env.DATA_BUCKET_NAME,
+      windowMs: 60_000,
+      maxRequests: 3,
+    })
+  : undefined;
 
-  const projectRepository = context.var.projectRepository;
-  const project = await projectRepository.getProject(owner, repo);
+api.post(
+  "/measure",
+  async (context, next) => {
+    if (measureRateLimit) {
+      await measureRateLimit(context, next);
+    } else {
+      await next();
+    }
+  },
+  async (context) => {
+    const body = await context.req.json<{
+      owner: string;
+      repo: string;
+    }>();
+    const owner = validateSegment(body.owner);
+    const repo = validateSegment(body.repo);
 
-  if (project?.measurementStatus === "Running") {
+    const projectRepository = context.var.projectRepository;
+    const project = await projectRepository.getProject(owner, repo);
+
+    if (project?.measurementStatus === "Running") {
+      return context.json({ ok: true });
+    }
+
+    if (
+      project?.lastMeasuredAt &&
+      DateTime.fromISO(project.lastMeasuredAt).hasSame(DateTime.utc(), "week")
+    ) {
+      return context.json({ ok: true });
+    }
+
+    await projectRepository.setRunning(owner, repo, "CloningRepo");
+    await context.var.measurementQueue.send({ owner, repo });
+
     return context.json({ ok: true });
-  }
-
-  if (
-    project?.lastMeasuredAt &&
-    DateTime.fromISO(project.lastMeasuredAt).hasSame(DateTime.utc(), "week")
-  ) {
-    return context.json({ ok: true });
-  }
-
-  await projectRepository.setRunning(owner, repo, "CloningRepo");
-  await context.var.measurementQueue.send({ owner, repo });
-
-  return context.json({ ok: true });
-});
+  },
+);
 
 api.get("/project/:owner/:repo", async (context) => {
   const owner = validateSegment(context.req.param("owner"));
