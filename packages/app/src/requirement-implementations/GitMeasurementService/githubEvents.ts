@@ -30,15 +30,17 @@ export default async function fetchGithubEventSignals(
   const query = `
     SELECT created_at, actor_login
     FROM github_events
-    WHERE repo_name = '${escapeClickHouseString(repoName)}'
+    WHERE repo_name = {repoName:String}
       AND event_type IN (${eventTypesIn})
       AND action = 'created'
     ORDER BY created_at
     FORMAT JSON
   `;
 
-  const url = `${CLICKHOUSE_ENDPOINT}?user=${CLICKHOUSE_USER}`;
-  const response = await fetch(url, {
+  const url = new URL(CLICKHOUSE_ENDPOINT);
+  url.searchParams.set("user", CLICKHOUSE_USER);
+  url.searchParams.set("param_repoName", repoName);
+  const response = await fetch(url.toString(), {
     method: "POST",
     body: query,
   });
@@ -56,8 +58,4 @@ export default async function fetchGithubEventSignals(
     author: row.actor_login,
     neighborhoodHours,
   }));
-}
-
-function escapeClickHouseString(value: string): string {
-  return value.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 }
