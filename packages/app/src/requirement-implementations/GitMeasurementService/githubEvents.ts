@@ -59,5 +59,5 @@ export default async function fetchGithubEventSignals(
 }
 
 function escapeClickHouseString(value: string): string {
-  return value.replace(/'/g, "\\'");
+  return value.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 }
