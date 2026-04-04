@@ -44,16 +44,16 @@ For many repos they're plausible, but for just as many they're clearly
 incorrect.
 
 Accuracy depends heavily on having enough human interaction signals: a feature
-developed behind closed doors and then code-dropped comes with very few signals
-attached, so to the algorithm it looks indistinguishable from a one-shot run by
-a coding agent.
+developed behind closed doors and then code-dropped all at once comes with very
+few signals attached. To the algorithm it looks indistinguishable from a
+ladelful of steaming LLM slop.
 
 Other factors can also throw off the estimates. For example, vendored-in
 dependencies kept in non-standard folders and large code files for
 configurations or demo data.
 
-The algorithm tries to account for some of these exceptions, but it seems that,
-ultimately, the two measures we're using are just too indirect.
+The algorithm does try to account for some of these exceptions, but it seems
+that, ultimately, the two measures we're using are just too indirect.
 
 ## Can _You_ Make a Better Algorithm?
 

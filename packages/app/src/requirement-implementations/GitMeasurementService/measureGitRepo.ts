@@ -184,7 +184,7 @@ export default function createGitMeasurement(
       const allSignals = [
         ...commitSignals,
         ...coAuthorSignals,
-        ...githubSignals,
+        ...githubSignals.filter((signal) => !isBotContributor(signal.author)),
       ];
       const sessions = computeSessions(allSignals);
 

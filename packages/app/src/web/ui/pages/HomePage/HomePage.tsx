@@ -156,9 +156,9 @@ export default function HomePage({ highlightedProjects }: Props) {
         </p>
         <p class={sectionTextClass}>
           Accuracy depends heavily on having enough human interaction signals: a
-          feature developed behind closed doors and then code-dropped comes with
-          very few signals attached, so to the algorithm it looks
-          indistinguishable from a one-shot run by a coding agent.
+          feature developed behind closed doors and then code-dropped all at
+          once comes with very few signals attached. To the algorithm it looks
+          indistinguishable from a ladelful of steaming LLM slop.
         </p>
         <p class={sectionTextClass}>
           Other factors can also throw off the estimates. For example,
@@ -166,7 +166,7 @@ export default function HomePage({ highlightedProjects }: Props) {
           files for configurations or demo data.
         </p>
         <p class={sectionTextClass}>
-          The algorithm tries to account for some of these exceptions, but it
+          The algorithm does try to account for some of these exceptions, but it
           seems that, ultimately, the two measures we're using are just too
           indirect.
         </p>

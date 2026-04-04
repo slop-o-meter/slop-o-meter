@@ -148,15 +148,18 @@ const BOT_EMAIL_PATTERNS = [
   /^cursoragent@/,
 ];
 
-export function isBotContributor(authorEmail: string): boolean {
-  const lowerEmail = authorEmail.toLowerCase();
+export function isBotContributor(nameOrEmail: string): boolean {
+  const lower = nameOrEmail.toLowerCase();
+  if (lower.endsWith("[bot]")) {
+    return true;
+  }
   for (const botName of BOT_NAMES) {
-    if (lowerEmail.includes(botName)) {
+    if (lower.includes(botName)) {
       return true;
     }
   }
   for (const pattern of BOT_EMAIL_PATTERNS) {
-    if (pattern.test(lowerEmail)) {
+    if (pattern.test(lower)) {
       return true;
     }
   }
