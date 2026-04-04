@@ -141,6 +141,7 @@ export const measurementViewCardSectionClass = css`
   display: flex;
   flex-direction: column;
   align-items: center;
+  max-width: 100%;
   @media (min-width: 1100px) {
     flex-shrink: 0;
   }

@@ -169,7 +169,7 @@ export const sectionClass = css`
   max-width: 1320px;
   margin: 0 auto;
   @media (max-width: 600px) {
-    padding: 3.5rem 1.5rem;
+    padding: 2rem 1.5rem;
   }
 `;
 
@@ -180,6 +180,9 @@ export const sectionHeaderClass = css`
   margin-bottom: 3rem;
   letter-spacing: -0.01em;
   color: var(--brown);
+  @media (max-width: 600px) {
+    margin-bottom: 2rem;
+  }
   &::after {
     content: "";
     display: block;

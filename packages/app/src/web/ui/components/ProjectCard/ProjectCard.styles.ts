@@ -13,6 +13,7 @@ export const projectCardClass = css`
     color: var(--brown);
   }
   display: block;
+  max-width: 100%;
   transition:
     transform 0.15s,
     box-shadow 0.15s;
