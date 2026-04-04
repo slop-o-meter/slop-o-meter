@@ -124,7 +124,7 @@ export default class SlopOMeterStack extends cdk.Stack {
         architecture: lambda.Architecture.ARM_64,
         memorySize: 1769,
         timeout: cdk.Duration.seconds(300),
-        ephemeralStorageSize: cdk.Size.mebibytes(1024),
+        ephemeralStorageSize: cdk.Size.mebibytes(2048),
         environment: environmentVariables,
       },
     );
