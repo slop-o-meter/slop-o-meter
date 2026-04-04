@@ -2,6 +2,8 @@
 (function () {
   "use strict";
 
+  // --- Search form logic ---
+
   function parseOwnerRepo(input) {
     var stripped = input
       .replace(/^(https?:\/\/)?github\.com\//, "")
@@ -55,8 +57,113 @@
         if (input) {
           input.value = "";
         }
-        window.location.href = `/${parsed.owner}/${parsed.repo}`;
+        window.location.href = "/" + parsed.owner + "/" + parsed.repo;
       });
     });
+  }
+
+  // --- Project card flip cycling ---
+
+  var grid = document.querySelector("[data-project-grid]");
+  if (!grid) {
+    return;
+  }
+
+  var templates = document.querySelectorAll("[data-project-template]");
+  if (templates.length === 0) {
+    return;
+  }
+
+  // Collect all template contents indexed by their project number
+  var templatesByIndex = {};
+  for (var i = 0; i < templates.length; i++) {
+    var index = templates[i].getAttribute("data-project-template");
+    templatesByIndex[index] = templates[i];
+  }
+
+  var flipInners = grid.querySelectorAll("[data-flip-inner]");
+  if (flipInners.length === 0) {
+    return;
+  }
+
+  var slotCount = flipInners.length;
+  var totalProjects = templates.length;
+
+  // Track which project index each slot is currently showing
+  var slotCurrentProject = [];
+  for (var s = 0; s < slotCount; s++) {
+    slotCurrentProject[s] = s;
+  }
+
+  // Track flip state per slot (false = showing front, true = showing back)
+  var slotIsFlipped = [];
+  for (var s = 0; s < slotCount; s++) {
+    slotIsFlipped[s] = false;
+  }
+
+  // Each slot cycles sequentially through projects in a fixed order.
+  // Build per-slot queues: slot 0 gets projects 0, 3, 6, 9, ...; slot 1 gets 1, 4, 7, ...; etc.
+  var slotQueues = [];
+  for (var s = 0; s < slotCount; s++) {
+    var queue = [];
+    for (var p = s; p < totalProjects; p += slotCount) {
+      queue.push(p);
+    }
+    slotQueues.push(queue);
+  }
+
+  // Track position within each slot's queue (starts at 0 = the initially rendered project)
+  var slotQueuePosition = [];
+  for (var s = 0; s < slotCount; s++) {
+    slotQueuePosition[s] = 0;
+  }
+
+  function populateCardFace(faceElement, projectIndex) {
+    var template = templatesByIndex[String(projectIndex)];
+    if (!template) {
+      return;
+    }
+    faceElement.innerHTML = "";
+    var content = template.content.cloneNode(true);
+    faceElement.appendChild(content);
+  }
+
+  function flipSlot(slotIndex) {
+    var queue = slotQueues[slotIndex];
+    if (queue.length <= 1) {
+      return;
+    }
+
+    slotQueuePosition[slotIndex] =
+      (slotQueuePosition[slotIndex] + 1) % queue.length;
+    var newProjectIndex = queue[slotQueuePosition[slotIndex]];
+
+    var flipInner = flipInners[slotIndex];
+    var front = flipInner.children[0];
+    var back = flipInner.children[1];
+
+    if (!slotIsFlipped[slotIndex]) {
+      populateCardFace(back, newProjectIndex);
+      flipInner.classList.add("flipped");
+    } else {
+      populateCardFace(front, newProjectIndex);
+      flipInner.classList.remove("flipped");
+    }
+
+    slotIsFlipped[slotIndex] = !slotIsFlipped[slotIndex];
+    slotCurrentProject[slotIndex] = newProjectIndex;
+  }
+
+  // Each slot runs its own interval, but starts with a random initial delay
+  for (var s = 0; s < slotCount; s++) {
+    (function (slotIndex) {
+      var initialDelay = 3000 + Math.random() * 4000;
+      setTimeout(function () {
+        flipSlot(slotIndex);
+        setInterval(function () {
+          flipSlot(slotIndex);
+        }, 10000);
+      }, initialDelay);
+    })(s);
   }
 })();

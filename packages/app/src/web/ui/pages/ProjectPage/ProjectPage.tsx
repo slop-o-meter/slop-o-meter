@@ -1,7 +1,6 @@
 import { DateTime } from "luxon";
 import type { Project } from "../../../../types.js";
 import componentAsset from "../../componentAsset.js";
-import Footer from "../../components/Footer/Footer.js";
 import HistoryCharts from "../../components/HistoryCharts/HistoryCharts.js";
 import ProjectCard from "../../components/ProjectCard/ProjectCard.js";
 import { scoreToDisplay, scoreToLevel } from "../../utils/scoring.js";
@@ -70,7 +69,6 @@ export default function ProjectPage({ owner, repo, project }: Props) {
           <MeasurementView project={project} />
         ) : null}
       </div>
-      <Footer />
 
       <script src={componentAsset("ProjectPage.client.js")} defer />
     </>

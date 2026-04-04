@@ -116,65 +116,12 @@ const SHORT_MONTHS = [
   "Dec",
 ];
 
-type MarkerGranularity = "year" | "quarter" | "month";
-
-function pickGranularity(entryCount: number): MarkerGranularity {
-  if (entryCount > 104) {
-    return "year";
-  }
-  if (entryCount > 27) {
-    return "quarter";
-  }
-  return "month";
-}
-
-const QUARTER_MONTHS = new Set([0, 3, 6, 9]);
-
-function isBoundary(
-  granularity: MarkerGranularity,
-  month: number,
-  year: number,
-  lastMonth: number,
-  lastYear: number,
-): boolean {
-  if (granularity === "year") {
-    return year !== lastYear;
-  }
-  if (granularity === "quarter") {
-    return (
-      (year !== lastYear || month !== lastMonth) && QUARTER_MONTHS.has(month)
-    );
-  }
-  return year !== lastYear || month !== lastMonth;
-}
-
-function boundaryDate(
-  granularity: MarkerGranularity,
-  month: number,
-  year: number,
-): Date {
-  if (granularity === "year") {
-    return new Date(year, 0, 1);
-  }
-  return new Date(year, month, 1);
-}
-
-function boundaryLabel(
-  granularity: MarkerGranularity,
-  month: number,
-  year: number,
-): string {
-  const shortYear = `'${String(year).slice(-2)}`;
-  if (granularity === "year") {
-    return String(year);
-  }
-  if (granularity === "quarter") {
-    const startMonth = SHORT_MONTHS[month] ?? "";
-    const endMonth = SHORT_MONTHS[month + 2] ?? "";
-    return `${startMonth}\u2013${endMonth} ${shortYear}`;
-  }
+function boundaryLabel(month: number, year: number): string {
   const monthName = SHORT_MONTHS[month] ?? "";
-  return `${monthName} ${shortYear}`;
+  if (month === 0 || month === 11) {
+    return `${monthName} '${String(year).slice(-2)}`;
+  }
+  return monthName;
 }
 
 function computeWeekMarkers(entries: { week: string }[]): WeekMarker[] {
@@ -182,7 +129,6 @@ function computeWeekMarkers(entries: { week: string }[]): WeekMarker[] {
     return [];
   }
 
-  const granularity = pickGranularity(entries.length);
   const boundaries: { notchPosition: number; label: string }[] = [];
   let lastMonth = -1;
   let lastYear = -1;
@@ -192,14 +138,14 @@ function computeWeekMarkers(entries: { week: string }[]): WeekMarker[] {
     const month = date.getMonth();
     const year = date.getFullYear();
 
-    if (isBoundary(granularity, month, year, lastMonth, lastYear)) {
-      const target = boundaryDate(granularity, month, year);
+    if (year !== lastYear || month !== lastMonth) {
+      const target = new Date(year, month, 1);
       const daysDiff =
         (target.getTime() - date.getTime()) / (1000 * 60 * 60 * 24);
       const notchPosition = Math.max(0, (i + daysDiff / 7) / entries.length);
       boundaries.push({
         notchPosition,
-        label: boundaryLabel(granularity, month, year),
+        label: boundaryLabel(month, year),
       });
       lastMonth = month;
       lastYear = year;
@@ -297,8 +243,7 @@ interface Props {
   history: HistoryEntry[];
 }
 
-const BAR_SLOT = 7;
-const MAX_VISIBLE_WEEKS = 130;
+const MAX_VISIBLE_WEEKS = 26;
 
 export default function HistoryCharts({ history }: Props) {
   const changes = computeChanges(history);
@@ -308,7 +253,7 @@ export default function HistoryCharts({ history }: Props) {
   const maxAbsChange = Math.max(0.5, ...changes.map((c) => Math.abs(c.change)));
   const scrollable = history.length > MAX_VISIBLE_WEEKS;
   const contentWidth = scrollable
-    ? `${String(history.length * BAR_SLOT)}px`
+    ? `${String((history.length / MAX_VISIBLE_WEEKS) * 100)}%`
     : undefined;
 
   return (

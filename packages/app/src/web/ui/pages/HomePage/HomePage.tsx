@@ -1,5 +1,6 @@
 import type { Project } from "../../../../types.js";
 import componentAsset from "../../componentAsset.js";
+import FlipCard from "../../components/FlipCard/FlipCard.js";
 import Footer from "../../components/Footer/Footer.js";
 import ProjectCard from "../../components/ProjectCard/ProjectCard.js";
 import SlopScale from "../../components/SlopScale/SlopScale.js";
@@ -26,7 +27,25 @@ interface Props {
   highlightedProjects: Project[];
 }
 
+function projectToCardProps(project: Project) {
+  const currentScore = project.measurement?.currentScore ?? 0;
+  const level = scoreToLevel(currentScore);
+  const displayScore = scoreToDisplay(currentScore);
+  return {
+    repo: `${project.owner}/${project.repo}`,
+    url: `/${project.owner}/${project.repo}`,
+    level,
+    score: displayScore.toFixed(1),
+    comment: project.measurement?.comment ?? "",
+  };
+}
+
+const VISIBLE_COUNT = 3;
+
 export default function HomePage({ highlightedProjects }: Props) {
+  const initialProjects = highlightedProjects.slice(0, VISIBLE_COUNT);
+  const rotations = [-2, 1.5, -1, 2.5, -1.5];
+
   return (
     <>
       <section class={heroClass}>
@@ -59,30 +78,33 @@ export default function HomePage({ highlightedProjects }: Props) {
               </button>
             </form>
           </div>
-          {highlightedProjects.length > 0 ? (
-            <>
-              <div class={gridClass}>
-                {highlightedProjects.map((project, index) => {
-                  const currentScore = project.measurement?.currentScore ?? 0;
-                  const level = scoreToLevel(currentScore);
-                  const displayScore = scoreToDisplay(currentScore);
-                  const rotations = [-2, 1.5, -1, 2.5, -1.5];
-                  const rotation = rotations[index % rotations.length];
-                  return (
-                    <div style={`transform: rotate(${String(rotation)}deg)`}>
-                      <ProjectCard
-                        repo={`${project.owner}/${project.repo}`}
-                        url={`/${project.owner}/${project.repo}`}
-                        level={level}
-                        score={displayScore.toFixed(1)}
-                        comment={project.measurement?.comment ?? ""}
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-            </>
+          {initialProjects.length > 0 ? (
+            <div class={gridClass} data-project-grid>
+              {initialProjects.map((project, index) => {
+                const cardProps = projectToCardProps(project);
+                const rotation = rotations[index % rotations.length];
+                return (
+                  <div style={`transform: rotate(${String(rotation)}deg)`}>
+                    <FlipCard
+                      front={<ProjectCard {...cardProps} />}
+                      back={<span />}
+                    />
+                  </div>
+                );
+              })}
+            </div>
           ) : null}
+
+          {highlightedProjects.length > 0
+            ? highlightedProjects.map((project, index) => {
+                const cardProps = projectToCardProps(project);
+                return (
+                  <template data-project-template={String(index)}>
+                    <ProjectCard {...cardProps} />
+                  </template>
+                );
+              })
+            : null}
         </div>
       </section>
 
