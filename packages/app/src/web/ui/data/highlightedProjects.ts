@@ -2,7 +2,6 @@ const HIGHLIGHTED_PROJECTS = [
   { owner: "facebook", repo: "react" },
   { owner: "denoland", repo: "deno" },
   { owner: "openclaw", repo: "openclaw" },
-  { owner: "vercel", repo: "next.js" },
   { owner: "superegodev", repo: "superego" },
   { owner: "pingdotgg", repo: "t3code" },
   { owner: "sveltejs", repo: "svelte" },

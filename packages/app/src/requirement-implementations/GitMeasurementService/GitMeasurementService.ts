@@ -11,6 +11,7 @@ import OutlierClassifier from "./outlierClassifier.js";
 export type { ProgressPhase };
 
 const SAFE_PATH_SEGMENT = /^[a-zA-Z0-9._-]+$/;
+const MAX_REPO_SIZE_MB = 1024;
 
 export default class GitMeasurementService implements MeasurementService {
   constructor(
@@ -35,11 +36,14 @@ export default class GitMeasurementService implements MeasurementService {
       }
     }
 
-    try {
-      const repoSizeKb = await this.fetchRepoSizeKb(owner, repo);
-      await this.options.onRepoMeta?.({ sizeKb: repoSizeKb });
-    } catch {
-      // Size check is best-effort; continue without it
+    const repoSizeKb = await this.fetchRepoSizeKb(owner, repo);
+    await this.options.onRepoMeta?.({ sizeKb: repoSizeKb });
+
+    const repoSizeMb = repoSizeKb / 1024;
+    if (repoSizeMb > MAX_REPO_SIZE_MB) {
+      throw new Error(
+        `Repository ${owner}/${repo} is too large (${Math.round(repoSizeMb)} MB, limit is ${MAX_REPO_SIZE_MB} MB)`,
+      );
     }
 
     const repoPath = join(tmpdir(), owner, repo);

@@ -86,6 +86,9 @@ function classifyError(error: unknown): string {
   if (lower.includes("not enough commits")) {
     return "The repo has too few commits";
   }
+  if (lower.includes("too large")) {
+    return "Repository is too large to analyze";
+  }
   if (lower.includes("repository not found") || lower.includes("not found")) {
     return "Repository not found";
   }
