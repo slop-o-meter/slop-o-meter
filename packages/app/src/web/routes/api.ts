@@ -21,38 +21,51 @@ api.use("/*", async (context, next) => {
   await next();
 });
 
-const measureRateLimit = rateLimiter({
-  windowMs: 60_000,
-  maxRequests: 3,
-});
+const measureRateLimit = process.env.DATA_BUCKET_NAME
+  ? rateLimiter({
+      bucketName: process.env.DATA_BUCKET_NAME,
+      windowMs: 60_000,
+      maxRequests: 3,
+    })
+  : undefined;
 
-api.post("/measure", measureRateLimit, async (context) => {
-  const body = await context.req.json<{
-    owner: string;
-    repo: string;
-  }>();
-  const owner = validateSegment(body.owner);
-  const repo = validateSegment(body.repo);
+api.post(
+  "/measure",
+  async (context, next) => {
+    if (measureRateLimit) {
+      await measureRateLimit(context, next);
+    } else {
+      await next();
+    }
+  },
+  async (context) => {
+    const body = await context.req.json<{
+      owner: string;
+      repo: string;
+    }>();
+    const owner = validateSegment(body.owner);
+    const repo = validateSegment(body.repo);
 
-  const projectRepository = context.var.projectRepository;
-  const project = await projectRepository.getProject(owner, repo);
+    const projectRepository = context.var.projectRepository;
+    const project = await projectRepository.getProject(owner, repo);
 
-  if (project?.measurementStatus === "Running") {
+    if (project?.measurementStatus === "Running") {
+      return context.json({ ok: true });
+    }
+
+    if (
+      project?.lastMeasuredAt &&
+      DateTime.fromISO(project.lastMeasuredAt).hasSame(DateTime.utc(), "week")
+    ) {
+      return context.json({ ok: true });
+    }
+
+    await projectRepository.setRunning(owner, repo, "CloningRepo");
+    await context.var.measurementQueue.send({ owner, repo });
+
     return context.json({ ok: true });
-  }
-
-  if (
-    project?.lastMeasuredAt &&
-    DateTime.fromISO(project.lastMeasuredAt).hasSame(DateTime.utc(), "week")
-  ) {
-    return context.json({ ok: true });
-  }
-
-  await projectRepository.setRunning(owner, repo, "CloningRepo");
-  await context.var.measurementQueue.send({ owner, repo });
-
-  return context.json({ ok: true });
-});
+  },
+);
 
 api.get("/project/:owner/:repo", async (context) => {
   const owner = validateSegment(context.req.param("owner"));
