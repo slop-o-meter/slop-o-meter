@@ -1,6 +1,17 @@
 import { Hono } from "hono";
+import { HTTPException } from "hono/http-exception";
 import { DateTime } from "luxon";
 import type WebEnv from "../webEnv.js";
+
+const SAFE_PATH_SEGMENT = /^[a-zA-Z0-9._-]+$/;
+
+function validateSegment(value: string): string {
+  const lower = value.toLowerCase();
+  if (!SAFE_PATH_SEGMENT.test(lower)) {
+    throw new HTTPException(400, { message: "Invalid owner or repo name" });
+  }
+  return lower;
+}
 
 const api = new Hono<WebEnv>();
 
@@ -14,8 +25,8 @@ api.post("/measure", async (context) => {
     owner: string;
     repo: string;
   }>();
-  const owner = body.owner.toLowerCase();
-  const repo = body.repo.toLowerCase();
+  const owner = validateSegment(body.owner);
+  const repo = validateSegment(body.repo);
 
   const projectRepository = context.var.projectRepository;
   const project = await projectRepository.getProject(owner, repo);
@@ -38,8 +49,8 @@ api.post("/measure", async (context) => {
 });
 
 api.get("/project/:owner/:repo", async (context) => {
-  const owner = context.req.param("owner").toLowerCase();
-  const repo = context.req.param("repo").toLowerCase();
+  const owner = validateSegment(context.req.param("owner"));
+  const repo = validateSegment(context.req.param("repo"));
   const project = await context.var.projectRepository.getProject(owner, repo);
   if (!project) {
     return context.json({ found: false });
