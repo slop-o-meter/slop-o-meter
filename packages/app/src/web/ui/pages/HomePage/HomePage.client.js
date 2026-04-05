@@ -20,11 +20,11 @@
     var searchInput = searchForm.querySelector("input[name=query]");
     if (searchInput) {
       var mobileQuery = window.matchMedia("(max-width: 600px)");
-      function updatePlaceholder() {
+      var updatePlaceholder = function () {
         searchInput.placeholder = mobileQuery.matches
           ? "owner/repo"
           : "github.com/owner/repo";
-      }
+      };
       updatePlaceholder();
       mobileQuery.addEventListener("change", updatePlaceholder);
     }
