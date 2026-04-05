@@ -46,7 +46,7 @@
       '<div data-measurement-status="Running" style="display:flex;flex-direction:column;align-items:center">' +
       '<video style="width:80px;height:auto;margin-bottom:1.5rem" src="/spinner.webm" autoplay loop muted playsinline></video>' +
       '<p data-phase-text style="font-family:var(--mono);font-size:1.5rem;color:var(--mustard);margin-bottom:0.25rem;text-align:center">The measurement will start shortly</p>' +
-      '<p data-phase-sub-text style="font-family:var(--mono);font-size:1rem;color:var(--brown-mid);margin-bottom:1rem;min-height:1.4em;text-align:center"></p>' +
+      '<p data-phase-sub-text style="font-family:var(--mono);font-size:1rem;color:var(--brown-light);margin-bottom:1rem;min-height:1.4em;text-align:center"></p>' +
       "</div>";
   }
 
@@ -83,12 +83,14 @@
               project.measurementPhase === "CloningRepo" &&
               project.isLargeRepo
             ) {
-              subText = "big one, might take a while";
+              subText = "(big one, might take a while)";
             } else if (project.measurementPhaseProgress) {
               subText =
+                "(" +
                 project.measurementPhaseProgress.current +
                 " of " +
-                project.measurementPhaseProgress.total;
+                project.measurementPhaseProgress.total +
+                ")";
             }
             phaseSubText.textContent = subText;
           }

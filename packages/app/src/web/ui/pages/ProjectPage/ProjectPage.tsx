@@ -105,10 +105,10 @@ function RunningView({ project }: { project: Project }) {
 
   function buildSubText(): string {
     if (measurementPhase === "CloningRepo" && isLargeRepo) {
-      return "big one, might take a while";
+      return "(big one, might take a while)";
     }
     if (measurementPhaseProgress) {
-      return `${measurementPhaseProgress.current} of ${measurementPhaseProgress.total}`;
+      return `(${measurementPhaseProgress.current} of ${measurementPhaseProgress.total})`;
     }
     return "";
   }

@@ -78,7 +78,7 @@ export const runningViewStatusClass = css`
 export const runningViewSubTextClass = css`
   font-family: var(--mono);
   font-size: 1rem;
-  color: var(--brown-mid);
+  color: var(--brown-light);
   margin-bottom: 1rem;
   min-height: 1.4em;
   text-align: center;
