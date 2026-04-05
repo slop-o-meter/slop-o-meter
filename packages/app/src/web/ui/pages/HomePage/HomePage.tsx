@@ -2,6 +2,7 @@ import type { Project } from "../../../../types.js";
 import componentAsset from "../../componentAsset.js";
 import FlipCard from "../../components/FlipCard/FlipCard.js";
 import Footer from "../../components/Footer/Footer.js";
+import ForkRibbon from "../../components/ForkRibbon/ForkRibbon.js";
 import ProjectCard from "../../components/ProjectCard/ProjectCard.js";
 import SlopScale from "../../components/SlopScale/SlopScale.js";
 import { scoreToDisplay, scoreToLevel } from "../../utils/scoring.js";
@@ -48,6 +49,7 @@ export default function HomePage({ highlightedProjects }: Props) {
 
   return (
     <>
+      <ForkRibbon />
       <section class={heroClass}>
         <div class={heroBackgroundClass}>
           <SlopScale variant="background" />

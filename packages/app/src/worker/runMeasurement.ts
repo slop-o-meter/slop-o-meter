@@ -84,34 +84,34 @@ function classifyError(error: unknown): string {
   const lower = message.toLowerCase();
 
   if (lower.includes("not enough commits")) {
-    return "The repo has too few commits";
+    return "Sorry, this repo has too few commits 🐣";
   }
   if (lower.includes("too large")) {
-    return "Repository is too large to analyze";
+    return "Sorry, this repo is too large to measure 🐘";
   }
   if (lower.includes("repository not found") || lower.includes("not found")) {
-    return "Repository not found";
+    return "Sorry, we didn't find this repo 🧐";
   }
   if (
     lower.includes("authentication failed") ||
     lower.includes("403") ||
     lower.includes("could not read from remote")
   ) {
-    return "Private or inaccessible repository";
+    return "Looks like this repo is private 🔒";
   }
   if (lower.includes("fatal:") && lower.includes("clone")) {
-    return "Clone failed";
+    return "Clone failed 😵";
   }
   if (lower.includes("openrouter")) {
-    return "Inspection failed";
+    return "Inspection failed 😵";
   }
   if (
     lower.includes("enotfound") ||
     lower.includes("etimedout") ||
     lower.includes("fetch failed")
   ) {
-    return "Network error";
+    return "Network error 😵";
   }
 
-  return "Measurement failed";
+  return "Measurement failed 😵";
 }

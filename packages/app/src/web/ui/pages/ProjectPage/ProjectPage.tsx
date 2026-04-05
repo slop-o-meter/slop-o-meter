@@ -39,9 +39,10 @@ export default function ProjectPage({ owner, repo, project }: Props) {
         data-owner={owner}
         data-repo={repo}
       >
-        {(project?.measurementStatus === "Running" ||
-          project?.measurementStatus === "Error") &&
-        !project.measurement ? null : (
+        {!project ||
+        ((project.measurementStatus === "Running" ||
+          project.measurementStatus === "Error") &&
+          !project.measurement) ? null : (
           <a href="/" class={backLinkClass}>
             <svg
               width="16"
