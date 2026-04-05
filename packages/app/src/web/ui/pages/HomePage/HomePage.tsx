@@ -187,6 +187,14 @@ export default function HomePage({ highlightedProjects }: Props) {
         </p>
       </section>
 
+      <section class={sectionClass}>
+        <h2 class={sectionHeaderClass}>Read The Full Story</h2>
+        <p class={sectionTextClass}>
+          <a href="https://pscanf.com/s/352">Visit pscanf's blog</a> for a more
+          detailed explanation and analysis of the experiment.
+        </p>
+      </section>
+
       <Footer />
 
       <script src={componentAsset("HomePage.client.js")} defer />
