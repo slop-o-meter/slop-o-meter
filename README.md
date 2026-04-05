@@ -59,3 +59,8 @@ that, ultimately, the two measures we're using are just too indirect.
 
 Open a PR, and you'll get (pending approval) a preview environment where you can
 test your theories.
+
+## Read The Full Story
+
+[Visit pscanf's blog](https://pscanf.com/s/352) for a more detailed explanation
+and analysis of the experiment.
