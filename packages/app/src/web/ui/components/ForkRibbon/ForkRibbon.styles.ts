@@ -1,7 +1,7 @@
 import { css } from "hono/css";
 
 export const forkRibbonClass = css`
-  position: fixed;
+  position: absolute;
   top: 1.5rem;
   right: 4rem;
   z-index: 100;
