@@ -1,22 +1,22 @@
 import { describe, expect, it } from "vitest";
+import type { MeasurementCommit } from "../../requirements/MeasurementService.js";
 import aggregateCommits from "./aggregation.js";
-import type Commit from "./types.js";
 
 function makeCommit(
   week: string,
   author: string,
   additions: number,
   deletions = 0,
-): Commit {
+): MeasurementCommit {
   return {
     hash: `${week}-${author}-${String(additions)}`,
     week,
     timestamp: `${week}-1T00:00:00Z`,
     author,
     subject: "",
-    additions,
-    deletions,
-    fileStats: [],
+    weightedAdditions: additions,
+    weightedDeletions: deletions,
+    fileCount: 0,
     coAuthors: [],
     subCommitCount: 0,
   };
@@ -94,16 +94,16 @@ describe("aggregateCommits", () => {
 
   it("counts co-authors in contributor profiles the same as primary authors", () => {
     // Setup SUT
-    const commits: Commit[] = [
+    const commits: MeasurementCommit[] = [
       {
         hash: "abc123",
         week: "2025-W01",
         timestamp: "2025-W01-1T00:00:00Z",
         author: "alice@example.com",
         subject: "",
-        additions: 100,
-        deletions: 0,
-        fileStats: [],
+        weightedAdditions: 100,
+        weightedDeletions: 0,
+        fileCount: 0,
         coAuthors: ["bob@example.com"],
         subCommitCount: 0,
       },
@@ -119,30 +119,30 @@ describe("aggregateCommits", () => {
 
   it("produces identical profiles when swapping author and co-author", () => {
     // Setup SUT
-    const commitsAliceAuthors: Commit[] = [
+    const commitsAliceAuthors: MeasurementCommit[] = [
       {
         hash: "abc123",
         week: "2025-W01",
         timestamp: "2025-W01-1T00:00:00Z",
         author: "alice@example.com",
         subject: "",
-        additions: 100,
-        deletions: 0,
-        fileStats: [],
+        weightedAdditions: 100,
+        weightedDeletions: 0,
+        fileCount: 0,
         coAuthors: ["bob@example.com"],
         subCommitCount: 0,
       },
     ];
-    const commitsBobAuthors: Commit[] = [
+    const commitsBobAuthors: MeasurementCommit[] = [
       {
         hash: "def456",
         week: "2025-W01",
         timestamp: "2025-W01-1T00:00:00Z",
         author: "bob@example.com",
         subject: "",
-        additions: 100,
-        deletions: 0,
-        fileStats: [],
+        weightedAdditions: 100,
+        weightedDeletions: 0,
+        fileCount: 0,
         coAuthors: ["alice@example.com"],
         subCommitCount: 0,
       },

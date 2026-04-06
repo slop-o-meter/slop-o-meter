@@ -60,18 +60,18 @@ export default async function runMeasurement(
       currentScore: measurement.currentScore,
     });
 
-    const { analysisData, ...measurementWithoutAnalysis } = measurement;
+    const { measurementData, ...measurementWithoutData } = measurement;
     const measurementJson = JSON.stringify({
-      ...measurementWithoutAnalysis,
+      ...measurementWithoutData,
       comment,
     });
-    const analysisJson = JSON.stringify(analysisData);
+    const measurementDataJson = JSON.stringify(measurementData);
     await projectRepository.setComplete(
       owner,
       repo,
       measurementJson,
       new Date().toISOString(),
-      analysisJson,
+      measurementDataJson,
     );
   } catch (error) {
     console.error("Measurement failed", { owner, repo, error });

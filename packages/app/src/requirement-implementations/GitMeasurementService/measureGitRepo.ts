@@ -1,7 +1,9 @@
 import { exec as execCb } from "node:child_process";
 import { promisify } from "node:util";
 import type {
-  AnalysisData,
+  ExcludedHash,
+  MeasurementData,
+  MeasurementSignal,
   OutlierClassificationEntry,
 } from "../../requirements/MeasurementService.js";
 import { isBotContributor } from "./aggregation.js";
@@ -38,7 +40,7 @@ interface GitMeasurementOptions {
 interface GitMeasurementResult {
   currentScore: number;
   history: { week: string; score: number }[];
-  analysisData: AnalysisData;
+  measurementData: MeasurementData;
 }
 
 interface GitMeasurement {
@@ -109,16 +111,20 @@ export default function createGitMeasurement(
         (c) => !preAiHashes.has(c.hash),
       );
 
-      const excludedHashes = new Set([...autoExcludedHashes, ...preAiHashes]);
+      // Track excluded hashes with reasons
+      const excludedHashMap = new Map<string, ExcludedHash["reason"]>();
+      for (const hash of autoExcludedHashes) {
+        excludedHashMap.set(hash, "auto");
+      }
+      for (const hash of preAiHashes) {
+        excludedHashMap.set(hash, "pre-ai");
+      }
 
       if (outlierCandidates.length > 0 && options?.outlierClassifier) {
         await onProgress?.("classifying_outliers", {
           current: 0,
           total: outlierCandidates.length,
         });
-        console.log(
-          `Classifying ${outlierCandidates.length} outlier commits...`,
-        );
 
         outlierClassifications =
           await options.outlierClassifier.classifyCommits(
@@ -128,26 +134,9 @@ export default function createGitMeasurement(
 
         for (const result of outlierClassifications) {
           if (!result.classification.isSlop) {
-            excludedHashes.add(result.commit.hash);
+            excludedHashMap.set(result.commit.hash, "classified");
           }
-          const label = result.classification.isSlop
-            ? "SLOP"
-            : `NOT_SLOP: ${result.classification.reason}`;
-          console.log(
-            `  ${result.commit.hash.substring(0, 8)} (+${Math.round(result.commit.additions)}): ${label} - ${result.commit.subject.substring(0, 60)}`,
-          );
         }
-
-        const slopCount = outlierClassifications.filter(
-          (c) => c.classification.isSlop,
-        ).length;
-        console.log(
-          `  ${excludedHashes.size} excluded (${autoExcludedHashes.size} auto + ${excludedHashes.size - autoExcludedHashes.size} classified), ${slopCount} kept as slop`,
-        );
-      } else if (outlierCandidates.length > 0) {
-        console.log(
-          `${outlierCandidates.length} outlier commits detected but no classifier configured, keeping all`,
-        );
       }
 
       // Build signals from all commits (excluded commits still generate sessions)
@@ -199,33 +188,58 @@ export default function createGitMeasurement(
       const sessions = computeSessions(allSignals);
 
       await onProgress?.("scoring");
-      const measurement = toMeasurement(allCommits, sessions, excludedHashes);
-
-      const analysisData = buildAnalysisData(
+      const measurementData = buildMeasurementData(
         allCommits,
+        allSignals,
+        sessions,
+        excludedHashMap,
         outlierClassifications,
-        githubSignals.length,
       );
 
-      return { ...measurement, analysisData };
+      const measurement = toMeasurement(measurementData);
+      measurementData.weeklyDiagnostics = measurement.weeklyDiagnostics;
+
+      return { ...measurement, measurementData };
     },
   };
 }
 
-function buildAnalysisData(
+function buildMeasurementData(
   allCommits: Commit[],
+  allSignals: Signal[],
+  sessions: import("./sessions.js").Session[],
+  excludedHashMap: Map<string, ExcludedHash["reason"]>,
   outlierClassifications: ClassifiedCommit[],
-  githubEventCount: number,
-): AnalysisData {
+): MeasurementData {
   const commits = allCommits.map((commit) => ({
     hash: commit.hash,
+    week: commit.week,
     timestamp: commit.timestamp,
     author: commit.author,
     subject: commit.subject,
     weightedAdditions: Math.round(commit.additions),
     weightedDeletions: Math.round(commit.deletions),
     fileCount: commit.fileStats.length,
+    coAuthors: commit.coAuthors ?? [],
+    subCommitCount: commit.subCommitCount,
   }));
+
+  const signals: MeasurementSignal[] = allSignals.map((signal) => ({
+    timestamp: signal.timestamp,
+    author: signal.author,
+    neighborhoodHours: signal.neighborhoodHours,
+  }));
+
+  const serializedSessions = sessions.map((session) => ({
+    author: session.author,
+    startTime: session.startTime.toISO()!,
+    endTime: session.endTime.toISO()!,
+    durationHours: session.durationHours,
+  }));
+
+  const excludedHashes: ExcludedHash[] = [...excludedHashMap.entries()].map(
+    ([hash, reason]) => ({ hash, reason }),
+  );
 
   const classifications: OutlierClassificationEntry[] =
     outlierClassifications.map((c) => ({
@@ -236,8 +250,11 @@ function buildAnalysisData(
 
   return {
     commits,
+    signals,
+    sessions: serializedSessions,
+    excludedHashes,
     outlierClassifications: classifications,
-    githubEventCount,
+    weeklyDiagnostics: [],
   };
 }
 

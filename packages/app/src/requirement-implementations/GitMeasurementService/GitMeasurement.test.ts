@@ -1,8 +1,11 @@
 import { DateTime } from "luxon";
 import { describe, expect, it } from "vitest";
+import type {
+  ExcludedHash,
+  MeasurementCommit,
+  MeasurementSession,
+} from "../../requirements/MeasurementService.js";
 import toMeasurement from "./GitMeasurement.js";
-import type { Session } from "./sessions.js";
-import type Commit from "./types.js";
 
 // --- Helpers ---
 
@@ -13,7 +16,7 @@ function makeCommit(
   author: string,
   additions: number,
   deletions = 0,
-): Commit {
+): MeasurementCommit {
   const dt = DateTime.fromISO(week);
   return {
     hash: `${week}-${author}-${String(additions)}-${String(commitCounter++)}`,
@@ -21,9 +24,9 @@ function makeCommit(
     timestamp: dt.toISO()!,
     author,
     subject: "",
-    additions,
-    deletions,
-    fileStats: [],
+    weightedAdditions: additions,
+    weightedDeletions: deletions,
+    fileCount: 0,
     coAuthors: [],
     subCommitCount: 0,
   };
@@ -36,7 +39,7 @@ function weekLabel(index: number): string {
 function weeklyCommits(
   rates: { additions: number; deletions: number }[],
   authors: string[] = ["dev@example.com"],
-): Commit[] {
+): MeasurementCommit[] {
   return rates.flatMap((rate, index) =>
     authors.map((author) =>
       makeCommit(
@@ -53,17 +56,22 @@ function makeSession(
   week: string,
   author: string,
   durationHours: number,
-): Session {
+): MeasurementSession {
   const endTime = DateTime.fromISO(week).plus({ days: 3, hours: 10 });
   const startTime = endTime.minus({ hours: durationHours });
-  return { author, startTime, endTime, durationHours };
+  return {
+    author,
+    startTime: startTime.toISO()!,
+    endTime: endTime.toISO()!,
+    durationHours,
+  };
 }
 
 function weeklySessions(
   weeks: string[],
   hoursPerWeek: number,
   author = "dev@example.com",
-): Session[] {
+): MeasurementSession[] {
   return weeks.map((week) => makeSession(week, author, hoursPerWeek));
 }
 
@@ -71,11 +79,11 @@ function weeklySessions(
 function coreHistory(
   authors: string[],
   options?: { weeks?: number; commitsPerWeek?: number },
-): Commit[] {
+): MeasurementCommit[] {
   const weeks = options?.weeks ?? 15;
   const commitsPerWeek = options?.commitsPerWeek ?? 5;
   return authors.flatMap((author) => {
-    const commits: Commit[] = [];
+    const commits: MeasurementCommit[] = [];
     for (let w = 1; w <= weeks; w++) {
       for (let c = 0; c < commitsPerWeek; c++) {
         commits.push(
@@ -87,6 +95,17 @@ function coreHistory(
   });
 }
 
+function runMeasurement(
+  commits: MeasurementCommit[],
+  sessions: MeasurementSession[],
+  excludedHashes?: Set<string>,
+) {
+  const excluded: ExcludedHash[] = excludedHashes
+    ? [...excludedHashes].map((hash) => ({ hash, reason: "auto" as const }))
+    : [];
+  return toMeasurement({ commits, sessions, excludedHashes: excluded });
+}
+
 describe("toMeasurement", () => {
   describe("basic scoring", () => {
     it("returns score 0 for zero activity", () => {
@@ -94,7 +113,7 @@ describe("toMeasurement", () => {
       const commits = [makeCommit("2025-W01", "dev@example.com", 0, 0)];
 
       // Exercise
-      const result = toMeasurement(commits, []);
+      const result = runMeasurement(commits, []);
 
       // Verify
       expect(result.currentScore).toBe(0);
@@ -113,7 +132,7 @@ describe("toMeasurement", () => {
       const sessions = weeklySessions(["2025-W01"], 25);
 
       // Exercise
-      const result = toMeasurement(commits, sessions, excludedHashes);
+      const result = runMeasurement(commits, sessions, excludedHashes);
 
       // Verify
       expect(result.currentScore).toBe(0);
@@ -141,7 +160,7 @@ describe("toMeasurement", () => {
       ];
 
       // Exercise
-      const result = toMeasurement(commits, sessions);
+      const result = runMeasurement(commits, sessions);
 
       // Verify
       expect(result.currentScore).toBeGreaterThan(0);
@@ -155,7 +174,7 @@ describe("toMeasurement", () => {
       ]);
 
       // Exercise
-      const result = toMeasurement(commits, []);
+      const result = runMeasurement(commits, []);
 
       // Verify
       expect(result.currentScore).toBeGreaterThanOrEqual(0);
@@ -189,11 +208,11 @@ describe("toMeasurement", () => {
       );
 
       // Exercise
-      const scoreFewHours = toMeasurement(
+      const scoreFewHours = runMeasurement(
         commits,
         fewHoursSessions,
       ).currentScore;
-      const scoreManyHours = toMeasurement(
+      const scoreManyHours = runMeasurement(
         commits,
         manyHoursSessions,
       ).currentScore;
@@ -223,8 +242,8 @@ describe("toMeasurement", () => {
       ];
 
       // Exercise
-      const scoreCore = toMeasurement(commits, coreSession).currentScore;
-      const scoreDriveby = toMeasurement(commits, drivebySession).currentScore;
+      const scoreCore = runMeasurement(commits, coreSession).currentScore;
+      const scoreDriveby = runMeasurement(commits, drivebySession).currentScore;
 
       // Verify — drive-by has 0 core factor, so their time doesn't count
       expect(scoreDriveby).toBeGreaterThan(scoreCore);
@@ -262,12 +281,12 @@ describe("toMeasurement", () => {
       ];
 
       // Exercise
-      const scoreOne = toMeasurement(
+      const scoreOne = runMeasurement(
         commits,
         oneAuthorSessions,
         excludedHashes,
       ).currentScore;
-      const scoreTwo = toMeasurement(
+      const scoreTwo = runMeasurement(
         commits,
         twoAuthorSessions,
         excludedHashes,
@@ -292,7 +311,7 @@ describe("toMeasurement", () => {
       const sessions = [makeSession("2025-W01", coreAuthor, 5)];
 
       // Exercise
-      const result = toMeasurement(commits, sessions);
+      const result = runMeasurement(commits, sessions);
 
       // Verify — score is less than 1 because dampening reduces the
       // attention cost below the raw line count, letting session time
@@ -328,11 +347,11 @@ describe("toMeasurement", () => {
       ];
 
       // Exercise
-      const scoreSmall = toMeasurement(
+      const scoreSmall = runMeasurement(
         smallCommits,
         smallSessions,
       ).currentScore;
-      const scoreLarge = toMeasurement(
+      const scoreLarge = runMeasurement(
         largeCommits,
         largeSessions,
       ).currentScore;
@@ -352,7 +371,7 @@ describe("toMeasurement", () => {
       ];
 
       // Exercise
-      const result = toMeasurement(commits, []);
+      const result = runMeasurement(commits, []);
 
       // Verify
       expect(result.history).toHaveLength(4);
@@ -377,7 +396,7 @@ describe("toMeasurement", () => {
       ];
 
       // Exercise
-      const result = toMeasurement(commits, []);
+      const result = runMeasurement(commits, []);
 
       // Verify
       const scoreW07 = result.history.find((h) => h.week === "2025-W07")!.score;
@@ -391,7 +410,7 @@ describe("toMeasurement", () => {
   describe("edge cases", () => {
     it("handles empty commit list", () => {
       // Exercise
-      const result = toMeasurement([], []);
+      const result = runMeasurement([], []);
 
       // Verify
       expect(result.currentScore).toBe(0);
@@ -409,7 +428,7 @@ describe("toMeasurement", () => {
       ];
 
       // Exercise
-      const result = toMeasurement(commits, []);
+      const result = runMeasurement(commits, []);
 
       // Verify
       expect(Number.isFinite(result.currentScore)).toBe(true);
@@ -424,7 +443,7 @@ describe("toMeasurement", () => {
       const sessions = weeklySessions(["2025-W01", "2025-W02"], 100);
 
       // Exercise
-      const result = toMeasurement(commits, sessions);
+      const result = runMeasurement(commits, sessions);
 
       // Verify
       for (const entry of result.history) {
@@ -439,7 +458,7 @@ describe("toMeasurement", () => {
       );
 
       // Exercise
-      const result = toMeasurement(commits, []);
+      const result = runMeasurement(commits, []);
 
       // Verify
       for (const entry of result.history) {
@@ -454,10 +473,94 @@ describe("toMeasurement", () => {
       );
 
       // Exercise
-      const result = toMeasurement(commits, []);
+      const result = runMeasurement(commits, []);
 
       // Verify
       expect(result.history).toHaveLength(20);
+    });
+  });
+
+  describe("weeklyDiagnostics", () => {
+    it("returns one diagnostics entry per history entry", () => {
+      // Setup SUT
+      const commits = weeklyCommits([
+        { additions: 1000, deletions: 0 },
+        { additions: 2000, deletions: 0 },
+        { additions: 500, deletions: 200 },
+      ]);
+
+      // Exercise
+      const result = runMeasurement(commits, []);
+
+      // Verify
+      expect(result.weeklyDiagnostics).toHaveLength(result.history.length);
+      for (let i = 0; i < result.history.length; i++) {
+        expect(result.weeklyDiagnostics[i]!.week).toBe(result.history[i]!.week);
+        expect(result.weeklyDiagnostics[i]!.score).toBe(
+          result.history[i]!.score,
+        );
+      }
+    });
+
+    it("populates all intermediate values", () => {
+      // Setup SUT
+      const history = coreHistory(["dev@example.com"]);
+      const excludedHashes = new Set(history.map((c) => c.hash));
+      const commits = [
+        ...history,
+        ...weeklyCommits([{ additions: 3000, deletions: 500 }]),
+      ];
+      const sessions = [makeSession("2025-W01", "dev@example.com", 20)];
+
+      // Exercise
+      const result = runMeasurement(commits, sessions, excludedHashes);
+      const lastWeek =
+        result.weeklyDiagnostics[result.weeklyDiagnostics.length - 1]!;
+
+      // Verify — all fields are populated with sensible values
+      expect(lastWeek.weightedAdditions).toBe(3000);
+      expect(lastWeek.weightedDeletions).toBe(500);
+      expect(lastWeek.netAdditions).toBe(2500);
+      expect(lastWeek.sizeDampening).toBeGreaterThan(0);
+      expect(lastWeek.attentionCost).toBeGreaterThan(0);
+      expect(lastWeek.totalEffectiveHours).toBeGreaterThan(0);
+      expect(lastWeek.attentionSpent).toBeGreaterThan(0);
+      expect(lastWeek.cumulativeRawLines).toBeGreaterThan(0);
+      expect(lastWeek.cumulativeDampenedLines).toBeGreaterThan(0);
+    });
+
+    it("includes per-contributor breakdown", () => {
+      // Setup SUT
+      const history = coreHistory(["dev@example.com"]);
+      const excludedHashes = new Set(history.map((c) => c.hash));
+      const commits = [
+        ...history,
+        ...weeklyCommits([{ additions: 3000, deletions: 0 }]),
+      ];
+      const sessions = [makeSession("2025-W01", "dev@example.com", 20)];
+
+      // Exercise
+      const result = runMeasurement(commits, sessions, excludedHashes);
+      const lastWeek =
+        result.weeklyDiagnostics[result.weeklyDiagnostics.length - 1]!;
+
+      // Verify
+      expect(lastWeek.contributors.length).toBeGreaterThan(0);
+      const devContrib = lastWeek.contributors.find(
+        (c) => c.author === "dev@example.com",
+      )!;
+      expect(devContrib).toBeDefined();
+      expect(devContrib.rawSessionHours).toBeGreaterThan(0);
+      expect(devContrib.coreFactor).toBeGreaterThan(0);
+      expect(devContrib.cappedHours).toBeGreaterThan(0);
+    });
+
+    it("returns empty diagnostics for empty commits", () => {
+      // Exercise
+      const result = runMeasurement([], []);
+
+      // Verify
+      expect(result.weeklyDiagnostics).toEqual([]);
     });
   });
 });

@@ -1,4 +1,4 @@
-import type Commit from "./types.js";
+import type { MeasurementCommit } from "../../requirements/MeasurementService.js";
 
 export interface WeeklyData {
   week: string;
@@ -15,7 +15,7 @@ export interface ContributorProfile {
 }
 
 export default function aggregateCommits(
-  allCommits: Commit[],
+  allCommits: MeasurementCommit[],
   excludedHashes: Set<string> = new Set(),
 ): {
   weeklyData: WeeklyData[];
@@ -75,11 +75,11 @@ export default function aggregateCommits(
 
     const bucket = ensureWeek(commit.week);
     if (isExcluded) {
-      bucket.excludedAdditions += commit.additions;
-      bucket.excludedDeletions += commit.deletions;
+      bucket.excludedAdditions += commit.weightedAdditions;
+      bucket.excludedDeletions += commit.weightedDeletions;
     } else {
-      bucket.weightedAdditions += commit.additions;
-      bucket.weightedDeletions += commit.deletions;
+      bucket.weightedAdditions += commit.weightedAdditions;
+      bucket.weightedDeletions += commit.weightedDeletions;
     }
 
     // Non-bot authors and their co-authors count as active contributors

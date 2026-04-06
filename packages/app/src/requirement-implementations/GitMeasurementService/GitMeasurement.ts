@@ -1,10 +1,14 @@
 import { DateTime } from "luxon";
+import type {
+  ContributorWeekDiagnostics,
+  MeasurementData,
+  MeasurementSession,
+  WeeklyDiagnostics,
+} from "../../requirements/MeasurementService.js";
 import aggregateCommits, {
   type ContributorProfile,
   type WeeklyData,
 } from "./aggregation.js";
-import type { Session } from "./sessions.js";
-import type Commit from "./types.js";
 
 // --- Constants ---
 
@@ -16,32 +20,67 @@ const CORE_RAMP_END = 60;
 const WEEKLY_HOURS_FULL = 40;
 const WEEKLY_HOURS_CAP = 80;
 
+// --- Types ---
+
+interface AuthorWeekDetail {
+  rawSessionHours: number;
+  coreFactor: number;
+  effectiveHours: number;
+  cappedHours: number;
+}
+
+interface WeeklyEffectiveHoursResult {
+  weekTotals: Map<string, number>;
+  authorWeekDetail: Map<string, Map<string, AuthorWeekDetail>>;
+}
+
 // --- Main Entry Point ---
 
+export type WeeklyCapMode = "linear-ramp" | "cosine" | "concave";
+
+export interface MeasurementOptions {
+  linesPerHour?: number;
+  weeklyCapMode?: WeeklyCapMode;
+}
+
+export interface MeasurementOutput {
+  currentScore: number;
+  history: { week: string; score: number }[];
+  weeklyDiagnostics: WeeklyDiagnostics[];
+}
+
 export default function toMeasurement(
-  commits: Commit[],
-  sessions: Session[],
-  excludedHashes: Set<string> = new Set(),
-): { currentScore: number; history: { week: string; score: number }[] } {
+  data: Pick<MeasurementData, "commits" | "sessions" | "excludedHashes">,
+  options?: MeasurementOptions,
+): MeasurementOutput {
+  const excludedHashSet = new Set(data.excludedHashes.map((eh) => eh.hash));
   const { weeklyData, contributorProfiles } = aggregateCommits(
-    commits,
-    excludedHashes,
+    data.commits,
+    excludedHashSet,
   );
   const completeWeeklyData = fillWeekGaps(weeklyData);
 
   if (completeWeeklyData.length === 0) {
-    return { currentScore: 0, history: [] };
+    return { currentScore: 0, history: [], weeklyDiagnostics: [] };
   }
 
+  const linesPerHour = options?.linesPerHour ?? LINES_PER_HOUR;
+
+  const weeklyCapMode = options?.weeklyCapMode ?? "concave";
+
   // Pre-compute session hours per week, weighted by contributor core factor
-  const weeklyEffectiveHours = computeWeeklyEffectiveHours(
-    sessions,
-    contributorProfiles,
-  );
+  const { weekTotals: weeklyEffectiveHours, authorWeekDetail } =
+    computeWeeklyEffectiveHours(
+      data.sessions,
+      contributorProfiles,
+      weeklyCapMode,
+    );
 
   let cumulativeSlop = 0;
   let cumulativeRawLines = 0;
   let cumulativeDampenedLines = 0;
+
+  const weeklyDiagnostics: WeeklyDiagnostics[] = [];
 
   const history = completeWeeklyData.map((weekData) => {
     // Total additions/deletions include both normal and excluded commits.
@@ -69,11 +108,11 @@ export default function toMeasurement(
     const attentionCost = netAdditions * sizeDampening;
 
     // Step 3: Compute attention spent from session time
-    const effectiveHours = weeklyEffectiveHours.get(weekData.week) ?? 0;
-    const attentionSpent = effectiveHours * LINES_PER_HOUR;
+    const totalEffectiveHours = weeklyEffectiveHours.get(weekData.week) ?? 0;
+    const attentionSpent = totalEffectiveHours * linesPerHour;
 
     // Step 4: Compute excess (slop for this week)
-    const excess = Math.max(0, attentionCost - attentionSpent);
+    const weeklyExcess = Math.max(0, attentionCost - attentionSpent);
 
     // Step 5: Update remaining cumulative totals
     cumulativeDampenedLines = Math.max(
@@ -81,7 +120,7 @@ export default function toMeasurement(
       cumulativeDampenedLines +
         Math.max(0, totalAdditions - totalDeletions) * sizeDampening,
     );
-    cumulativeSlop = Math.max(0, cumulativeSlop + excess);
+    cumulativeSlop = Math.max(0, cumulativeSlop + weeklyExcess);
 
     // Step 6: Compute score as ratio (0 to 1).
     // Use dampened lines as denominator so the ratio stays consistent:
@@ -91,13 +130,62 @@ export default function toMeasurement(
         ? cumulativeSlop / cumulativeDampenedLines
         : 0;
 
+    // Collect per-contributor breakdown for this week
+    const contributors = buildContributorDiagnostics(
+      weekData.week,
+      authorWeekDetail,
+    );
+
+    weeklyDiagnostics.push({
+      week: weekData.week,
+      score,
+      weightedAdditions: weekData.weightedAdditions,
+      weightedDeletions: weekData.weightedDeletions,
+      excludedAdditions: weekData.excludedAdditions,
+      excludedDeletions: weekData.excludedDeletions,
+      cumulativeRawLines,
+      sizeDampening,
+      netAdditions,
+      attentionCost,
+      contributors,
+      totalEffectiveHours,
+      attentionSpent,
+      weeklyExcess,
+      cumulativeSlop,
+      cumulativeDampenedLines,
+    });
+
     return { week: weekData.week, score };
   });
 
   const currentScore =
     history.length > 0 ? history[history.length - 1]!.score : 0;
 
-  return { currentScore, history };
+  return { currentScore, history, weeklyDiagnostics };
+}
+
+// --- Per-Contributor Diagnostics ---
+
+function buildContributorDiagnostics(
+  week: string,
+  authorWeekDetail: Map<string, Map<string, AuthorWeekDetail>>,
+): ContributorWeekDiagnostics[] {
+  const contributors: ContributorWeekDiagnostics[] = [];
+
+  for (const [author, weekMap] of authorWeekDetail) {
+    const detail = weekMap.get(week);
+    if (detail && detail.cappedHours > 0) {
+      contributors.push({
+        author,
+        rawSessionHours: detail.rawSessionHours,
+        coreFactor: detail.coreFactor,
+        effectiveHours: detail.effectiveHours,
+        cappedHours: detail.cappedHours,
+      });
+    }
+  }
+
+  return contributors.sort((a, b) => b.cappedHours - a.cappedHours);
 }
 
 // --- Codebase Size Dampening ---
@@ -112,57 +200,97 @@ function computeSizeDampening(cumulativeWeightedLines: number): number {
 // --- Effective Hours (Session Time × Core Factor) ---
 
 function computeWeeklyEffectiveHours(
-  sessions: Session[],
+  sessions: MeasurementSession[],
   contributorProfiles: Map<string, ContributorProfile>,
-): Map<string, number> {
-  // First, accumulate raw effective hours per author per week
-  const authorWeekHours = new Map<string, Map<string, number>>();
+  weeklyCapMode: WeeklyCapMode,
+): WeeklyEffectiveHoursResult {
+  // Accumulate raw session hours and effective hours per author per week
+  const authorWeekRaw = new Map<string, Map<string, number>>();
+  const authorCoreFactors = new Map<string, number>();
 
   for (const session of sessions) {
-    const week = `${String(session.startTime.weekYear)}-W${String(session.startTime.weekNumber).padStart(2, "0")}`;
+    const startTime = DateTime.fromISO(session.startTime);
+    const week = `${String(startTime.weekYear)}-W${String(startTime.weekNumber).padStart(2, "0")}`;
     const coreFactor = computeCoreFactor(
       contributorProfiles.get(session.author),
     );
-    const effectiveHours = session.durationHours * coreFactor;
+    authorCoreFactors.set(session.author, coreFactor);
 
-    let weekMap = authorWeekHours.get(session.author);
+    let weekMap = authorWeekRaw.get(session.author);
     if (!weekMap) {
       weekMap = new Map();
-      authorWeekHours.set(session.author, weekMap);
+      authorWeekRaw.set(session.author, weekMap);
     }
-    weekMap.set(week, (weekMap.get(week) ?? 0) + effectiveHours);
+    weekMap.set(week, (weekMap.get(week) ?? 0) + session.durationHours);
   }
 
-  // Then, apply per-author weekly cap and sum across authors
-  const weekHours = new Map<string, number>();
+  // Apply per-author weekly cap and build detail maps
+  const weekTotals = new Map<string, number>();
+  const authorWeekDetail = new Map<string, Map<string, AuthorWeekDetail>>();
 
-  for (const [, weekMap] of authorWeekHours) {
-    for (const [week, rawHours] of weekMap) {
-      const cappedHours = capWeeklyHours(rawHours);
-      weekHours.set(week, (weekHours.get(week) ?? 0) + cappedHours);
+  for (const [author, weekMap] of authorWeekRaw) {
+    const coreFactor = authorCoreFactors.get(author) ?? 0;
+    const detailMap = new Map<string, AuthorWeekDetail>();
+    authorWeekDetail.set(author, detailMap);
+
+    for (const [week, rawSessionHours] of weekMap) {
+      const effectiveHours = rawSessionHours * coreFactor;
+      const cappedHours = capWeeklyHours(effectiveHours, weeklyCapMode);
+
+      detailMap.set(week, {
+        rawSessionHours,
+        coreFactor,
+        effectiveHours,
+        cappedHours,
+      });
+
+      weekTotals.set(week, (weekTotals.get(week) ?? 0) + cappedHours);
     }
   }
 
-  return weekHours;
+  return { weekTotals, authorWeekDetail };
 }
 
 /**
- * Caps a single contributor's weekly effective hours. The first
- * WEEKLY_HOURS_FULL hours count fully; hours between WEEKLY_HOURS_FULL
- * and WEEKLY_HOURS_CAP degrade linearly to zero; hours above
- * WEEKLY_HOURS_CAP contribute nothing.
+ * Caps a single contributor's weekly effective hours using one of three
+ * marginal-rate curves. All curves reach zero marginal value at
+ * WEEKLY_HOURS_CAP hours.
+ *
+ * "linear-ramp": flat at 1.0 until WEEKLY_HOURS_FULL, then linear
+ *   decline to 0 at WEEKLY_HOURS_CAP. (Original behavior.)
+ * "cosine": S-curve from hour 0, marginal = (1 + cos(πh/cap)) / 2.
+ *   Integral at cap = cap/2.
+ * "concave": gentle early decline, steep late, marginal = 1 - (h/cap)².
+ *   Integral at cap = 2*cap/3.
  */
-function capWeeklyHours(hours: number): number {
-  if (hours <= WEEKLY_HOURS_FULL) {
-    return hours;
+function capWeeklyHours(hours: number, mode: WeeklyCapMode): number {
+  const capped = Math.min(hours, WEEKLY_HOURS_CAP);
+
+  switch (mode) {
+    case "linear-ramp": {
+      if (capped <= WEEKLY_HOURS_FULL) {
+        return capped;
+      }
+      const overageRatio =
+        (capped - WEEKLY_HOURS_FULL) / (WEEKLY_HOURS_CAP - WEEKLY_HOURS_FULL);
+      const overageHours = capped - WEEKLY_HOURS_FULL;
+      return WEEKLY_HOURS_FULL + overageHours * (1 - overageRatio);
+    }
+    case "cosine": {
+      // Integral of (1 + cos(πh/cap)) / 2 from 0 to H
+      // = H/2 + cap/(2π) * sin(πH/cap)
+      const cap = WEEKLY_HOURS_CAP;
+      return (
+        capped / 2 + (cap / (2 * Math.PI)) * Math.sin((Math.PI * capped) / cap)
+      );
+    }
+    case "concave": {
+      // Integral of (1 - (h/cap)²) from 0 to H
+      // = H - H³/(3*cap²)
+      const cap = WEEKLY_HOURS_CAP;
+      return capped - capped ** 3 / (3 * cap ** 2);
+    }
   }
-  if (hours >= WEEKLY_HOURS_CAP) {
-    return WEEKLY_HOURS_FULL + (WEEKLY_HOURS_CAP - WEEKLY_HOURS_FULL) / 2;
-  }
-  const overageRatio =
-    (hours - WEEKLY_HOURS_FULL) / (WEEKLY_HOURS_CAP - WEEKLY_HOURS_FULL);
-  const overageHours = hours - WEEKLY_HOURS_FULL;
-  return WEEKLY_HOURS_FULL + overageHours * (1 - overageRatio);
 }
 
 // --- Core Factor ---

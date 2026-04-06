@@ -68,7 +68,7 @@ export default class S3ProjectRepository implements ProjectRepository {
     repo: string,
     measurementJson: string,
     lastMeasuredAt: string,
-    analysisJson?: string,
+    measurementDataJson?: string,
   ): Promise<void> {
     const project =
       (await this.readProject(owner, repo)) ?? this.defaultProject(owner, repo);
@@ -81,12 +81,12 @@ export default class S3ProjectRepository implements ProjectRepository {
     project.lastMeasuredAt = lastMeasuredAt;
     await this.writeProject(project);
 
-    if (analysisJson) {
+    if (measurementDataJson) {
       await this.s3Client.send(
         new PutObjectCommand({
           Bucket: this.bucketName,
-          Key: `projects/${owner}/${repo}.analysis.json`,
-          Body: analysisJson,
+          Key: `projects/${owner}/${repo}.measurement-data.json`,
+          Body: measurementDataJson,
           ContentType: "application/json",
         }),
       );

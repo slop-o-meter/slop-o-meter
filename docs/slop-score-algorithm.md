@@ -215,10 +215,17 @@ attentionSpentThisWeek = totalCappedTime * LINES_PER_HOUR;
 
 A single contributor's effective hours are capped per week to prevent inflated
 session time (e.g. from co-author signals or dense commit activity) from
-dominating the score. The first `WEEKLY_HOURS_FULL` hours count fully; hours
-between `WEEKLY_HOURS_FULL` and `WEEKLY_HOURS_CAP` degrade linearly to zero;
-hours above `WEEKLY_HOURS_CAP` contribute nothing. The maximum effective
-contribution per author per week is 60 hours.
+dominating the score. The marginal value of each hour follows a concave curve:
+the first hour counts fully, with diminishing returns as hours increase, reaching
+zero marginal value at `WEEKLY_HOURS_CAP` (80 hours).
+
+```
+marginalRate(h) = 1 - (h / WEEKLY_HOURS_CAP)²
+effectiveHours(H) = H - H³ / (3 × WEEKLY_HOURS_CAP²)
+```
+
+At 20 raw hours a contributor gets ~19.6 effective hours. At 40 hours: ~36.7.
+At 80 hours (the cap): ~53.3. Hours above the cap contribute nothing.
 
 Attention spent is not capped at net additions. In weeks where contributors
 spend significant time refactoring, reviewing, or debugging without producing
@@ -270,8 +277,7 @@ beyond what humans could have reasonably produced or reviewed.
 | `LINES_PER_HOUR`               | 40    | Weighted LOC one contributor can attend to per hour         |
 | `CORE_RAMP_START`              | 10    | Commits below which core factor is 0                        |
 | `CORE_RAMP_END`                | 60    | Commits at which core factor reaches 1.0                    |
-| `WEEKLY_HOURS_FULL`            | 40    | Weekly hours per author that count fully                    |
-| `WEEKLY_HOURS_CAP`             | 80    | Weekly hours per author above which no more credit is given |
+| `WEEKLY_HOURS_CAP`             | 80    | Weekly hours per author at which marginal value reaches 0   |
 | `OUTLIER_MIN_ADDITIONS`        | 2,000 | Minimum net weighted additions to flag a commit as outlier  |
 
 ## Score Interpretation

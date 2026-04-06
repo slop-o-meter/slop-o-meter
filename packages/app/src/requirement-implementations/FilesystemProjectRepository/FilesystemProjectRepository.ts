@@ -63,7 +63,7 @@ export default class FilesystemProjectRepository implements ProjectRepository {
     repo: string,
     measurementJson: string,
     lastMeasuredAt: string,
-    analysisJson?: string,
+    measurementDataJson?: string,
   ): Promise<void> {
     const project =
       this.readProject(owner, repo) ?? this.defaultProject(owner, repo);
@@ -76,8 +76,8 @@ export default class FilesystemProjectRepository implements ProjectRepository {
     project.lastMeasuredAt = lastMeasuredAt;
     this.writeProject(project);
 
-    if (analysisJson) {
-      this.writeAnalysis(owner, repo, analysisJson);
+    if (measurementDataJson) {
+      this.writeMeasurementData(owner, repo, measurementDataJson);
     }
   }
 
@@ -126,16 +126,16 @@ export default class FilesystemProjectRepository implements ProjectRepository {
     writeFileSync(filePath, JSON.stringify(project), "utf-8");
   }
 
-  private writeAnalysis(
+  private writeMeasurementData(
     owner: string,
     repo: string,
-    analysisJson: string,
+    measurementDataJson: string,
   ): void {
     const filePath = join(
       this.dataDirectory,
-      `projects/${owner}/${repo}.analysis.json`,
+      `projects/${owner}/${repo}.measurement-data.json`,
     );
     mkdirSync(dirname(filePath), { recursive: true });
-    writeFileSync(filePath, analysisJson, "utf-8");
+    writeFileSync(filePath, measurementDataJson, "utf-8");
   }
 }
