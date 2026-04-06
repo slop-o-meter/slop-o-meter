@@ -99,12 +99,19 @@ describe("toMeasurement", () => {
     });
 
     it("returns score 0 when session time covers all additions", () => {
-      // Setup SUT — 800 additions, 25h session = 1000 LOC capacity
-      const commits = weeklyCommits([{ additions: 800, deletions: 0 }]);
+      // Setup SUT — 800 additions, 25h session = 1000 LOC capacity.
+      // Core history (excluded) builds up contributor profile and codebase
+      // size without generating slop.
+      const history = coreHistory(["dev@example.com"]);
+      const excludedHashes = new Set(history.map((c) => c.hash));
+      const commits = [
+        ...history,
+        ...weeklyCommits([{ additions: 800, deletions: 0 }]),
+      ];
       const sessions = weeklySessions(["2025-W01"], 25);
 
       // Exercise
-      const result = toMeasurement(commits, sessions);
+      const result = toMeasurement(commits, sessions, excludedHashes);
 
       // Verify
       expect(result.currentScore).toBe(0);
@@ -224,41 +231,64 @@ describe("toMeasurement", () => {
 
   describe("codebase size dampening", () => {
     it("dampens slop when codebase is small (under bootstrap threshold)", () => {
-      // Setup SUT — first week at 0 cumulative lines, dampening starts at 0
-      const commits = weeklyCommits([
-        { additions: 3000, deletions: 0 },
-        { additions: 3000, deletions: 0 },
-        { additions: 3000, deletions: 0 },
-      ]);
+      // Setup SUT — a single week with 1000 adds and enough commits for
+      // a non-zero core factor, plus generous session time. With only
+      // 1000 cumulative lines, dampening = 1000/5000 = 0.2, so the
+      // attention cost is much lower than the raw line count.
+      const coreAuthor = "dev@example.com";
+      const commits = Array.from({ length: 15 }, () =>
+        makeCommit("2025-W01", coreAuthor, 1000 / 15),
+      );
+      const sessions = [makeSession("2025-W01", coreAuthor, 5)];
 
       // Exercise
-      const result = toMeasurement(commits, []);
+      const result = toMeasurement(commits, sessions);
 
-      // Verify — first week has 0 slop (dampening = 0 at 0 lines)
-      expect(result.history[0]!.score).toBe(0);
+      // Verify — score is less than 1 because dampening reduces the
+      // attention cost below the raw line count, letting session time
+      // cover part of it
       expect(result.currentScore).toBeGreaterThan(0);
+      expect(result.currentScore).toBeLessThan(1);
     });
 
-    it("uses sqrt curve for bootstrap dampening", () => {
-      // Setup SUT — compare dampened vs undampened by providing large baseline
-      const smallCodebase = weeklyCommits([{ additions: 3000, deletions: 0 }]);
-      const largeCodebase = [
-        // Build up 10k lines first (past bootstrap threshold)
-        ...weeklyCommits(
-          Array.from({ length: 12 }, () => ({
-            additions: 800,
-            deletions: 0,
-          })),
+    it("applies lower dampening for small codebase than large one", () => {
+      // Setup SUT — two repos get the same 3000-line addition in different
+      // weeks, but one has a large pre-existing codebase. Both have enough
+      // commits for a non-zero core factor and the same session time for the
+      // week under test, so the only difference is codebase-size dampening.
+      const coreAuthor = "dev@example.com";
+
+      const smallCommits = Array.from({ length: 15 }, () =>
+        makeCommit(weekLabel(0), coreAuthor, 200),
+      );
+      const smallSessions = [makeSession(weekLabel(0), coreAuthor, 20)];
+
+      const rampUpCommits = Array.from({ length: 15 }, (_, weekIndex) =>
+        makeCommit(weekLabel(weekIndex), coreAuthor, 800),
+      );
+      const largeCommits = [
+        ...rampUpCommits,
+        makeCommit(weekLabel(15), coreAuthor, 3000),
+      ];
+      const largeSessions = [
+        ...rampUpCommits.map((_, weekIndex) =>
+          makeSession(weekLabel(weekIndex), coreAuthor, 1),
         ),
-        makeCommit("2025-W13", "dev@example.com", 3000),
+        makeSession(weekLabel(15), coreAuthor, 20),
       ];
 
       // Exercise
-      const scoreSmall = toMeasurement(smallCodebase, []).currentScore;
-      const scoreLarge = toMeasurement(largeCodebase, []).currentScore;
+      const scoreSmall = toMeasurement(
+        smallCommits,
+        smallSessions,
+      ).currentScore;
+      const scoreLarge = toMeasurement(
+        largeCommits,
+        largeSessions,
+      ).currentScore;
 
-      // Verify — small codebase should have less slop due to dampening
-      // (even though it has fewer total lines, the dampening reduces excess)
+      // Verify — small codebase has lower dampening, so the same additions
+      // produce a lower attention cost → lower score
       expect(scoreSmall).toBeLessThan(scoreLarge);
     });
   });

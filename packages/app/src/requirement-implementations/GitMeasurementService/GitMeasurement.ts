@@ -49,9 +49,16 @@ export default function toMeasurement(
     const totalDeletions =
       weekData.weightedDeletions + weekData.excludedDeletions;
 
-    // Step 1: Apply codebase size dampening to compute attention cost.
-    // Dampening uses the raw cumulative size (not dampened) to avoid
-    // circular dependency where dampening prevents codebase growth.
+    // Step 1: Update cumulative raw lines so this week's own additions
+    // factor into the dampening. Without this, a repo whose entire
+    // history lands in a single week would have dampening=0 and always
+    // score 0.
+    cumulativeRawLines = Math.max(
+      0,
+      cumulativeRawLines + totalAdditions - totalDeletions,
+    );
+
+    // Step 2: Apply codebase size dampening to compute attention cost.
     const sizeDampening = computeSizeDampening(cumulativeRawLines);
     const netAdditions = Math.max(
       0,
@@ -59,18 +66,14 @@ export default function toMeasurement(
     );
     const attentionCost = netAdditions * sizeDampening;
 
-    // Step 2: Compute attention spent from session time
+    // Step 3: Compute attention spent from session time
     const effectiveHours = weeklyEffectiveHours.get(weekData.week) ?? 0;
     const attentionSpent = effectiveHours * LINES_PER_HOUR;
 
-    // Step 3: Compute excess (slop for this week)
+    // Step 4: Compute excess (slop for this week)
     const excess = Math.max(0, attentionCost - attentionSpent);
 
-    // Step 4: Update cumulative totals (using total lines for size tracking)
-    cumulativeRawLines = Math.max(
-      0,
-      cumulativeRawLines + totalAdditions - totalDeletions,
-    );
+    // Step 5: Update remaining cumulative totals
     cumulativeDampenedLines = Math.max(
       0,
       cumulativeDampenedLines +
@@ -78,7 +81,7 @@ export default function toMeasurement(
     );
     cumulativeSlop = Math.max(0, cumulativeSlop + excess);
 
-    // Step 5: Compute score as ratio (0 to 1).
+    // Step 6: Compute score as ratio (0 to 1).
     // Use dampened lines as denominator so the ratio stays consistent:
     // both numerator (slop) and denominator (total cost) include dampening.
     const score =
