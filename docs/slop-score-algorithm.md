@@ -107,6 +107,9 @@ added. This captures two effects:
    more surface area to review. Lines added to larger codebases should carry
    slightly more weight.
 
+The dampening factor is computed from the cumulative weighted line count
+**including** the current week's additions:
+
 ```js
 bootstrap = Math.min(1, cumulativeWeightedLines / BOOTSTRAP_THRESHOLD);
 complexityBonus =
