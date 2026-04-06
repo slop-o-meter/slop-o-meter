@@ -5,15 +5,16 @@ import type Commit from "./types.js";
 function makeCommit(
   additions: number,
   timestamp = "2025-01-06T10:00:00Z",
+  deletions = 0,
 ): Commit {
   return {
-    hash: `hash-${String(additions)}-${timestamp}`,
+    hash: `hash-${String(additions)}-${String(deletions)}-${timestamp}`,
     week: "2025-W02",
     timestamp,
     author: "dev@example.com",
     subject: "",
     additions,
-    deletions: 0,
+    deletions,
     fileStats: [],
     coAuthors: [],
     subCommitCount: 0,
@@ -30,7 +31,7 @@ describe("detectOutlierCommits", () => {
     expect(result.normalCommits).toEqual([]);
   });
 
-  it("selects the top N commits by additions where N = 4 * age in years", () => {
+  it("selects the top N commits by net additions where N = 4 * age in years", () => {
     // Setup SUT — project spans 2 years, so N = ceil(2 * 4) = 8
     // but only 4 commits are above OUTLIER_MIN_ADDITIONS (2000)
     const commits = [
@@ -108,6 +109,23 @@ describe("detectOutlierCommits", () => {
     // normals in original order
     expect(result.normalCommits[0]!.additions).toBe(100);
     expect(result.normalCommits[1]!.additions).toBe(200);
+  });
+
+  it("does not flag commits with high gross but low net additions", () => {
+    // Setup SUT — a refactoring commit that moves code between files:
+    // 3500 additions and 3400 deletions = only 100 net lines
+    const commits = [
+      makeCommit(100, "2024-01-06T10:00:00Z"),
+      makeCommit(3500, "2024-06-06T10:00:00Z", 3400),
+      makeCommit(200, "2025-01-06T10:00:00Z"),
+    ];
+
+    // Exercise
+    const result = detectOutlierCommits(commits);
+
+    // Verify — the 3500-add commit has only 100 net lines, below threshold
+    expect(result.outlierCommits).toHaveLength(0);
+    expect(result.normalCommits).toHaveLength(3);
   });
 
   it("rounds up fractional years", () => {

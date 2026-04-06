@@ -6,6 +6,8 @@ import type Commit from "./types.js";
 
 // --- Helpers ---
 
+let commitCounter = 0;
+
 function makeCommit(
   week: string,
   author: string,
@@ -14,7 +16,7 @@ function makeCommit(
 ): Commit {
   const dt = DateTime.fromISO(week);
   return {
-    hash: `${week}-${author}-${String(additions)}`,
+    hash: `${week}-${author}-${String(additions)}-${String(commitCounter++)}`,
     week,
     timestamp: dt.toISO()!,
     author,
@@ -226,6 +228,54 @@ describe("toMeasurement", () => {
 
       // Verify — drive-by has 0 core factor, so their time doesn't count
       expect(scoreDriveby).toBeGreaterThan(scoreCore);
+    });
+  });
+
+  describe("weekly hour cap", () => {
+    it("limits how much a single author can contribute per week", () => {
+      // Setup SUT — two scenarios with the same total session time
+      // (split across multiple short sessions to stay in the same week).
+      // One author with many sessions vs two authors splitting them.
+      const history = coreHistory(["a@example.com", "b@example.com"], {
+        weeks: 30,
+        commitsPerWeek: 5,
+      });
+      const excludedHashes = new Set(history.map((c) => c.hash));
+      const commits = [
+        ...history,
+        makeCommit("2025-W01", "a@example.com", 10000),
+      ];
+
+      // 5 × 30h sessions for one author = 150h effective (after core
+      // factor), well above the cap
+      const oneAuthorSessions = Array.from({ length: 5 }, () =>
+        makeSession("2025-W01", "a@example.com", 30),
+      );
+      // Split across two authors: each gets 2-3 × 30h sessions
+      const twoAuthorSessions = [
+        ...Array.from({ length: 3 }, () =>
+          makeSession("2025-W01", "a@example.com", 30),
+        ),
+        ...Array.from({ length: 2 }, () =>
+          makeSession("2025-W01", "b@example.com", 30),
+        ),
+      ];
+
+      // Exercise
+      const scoreOne = toMeasurement(
+        commits,
+        oneAuthorSessions,
+        excludedHashes,
+      ).currentScore;
+      const scoreTwo = toMeasurement(
+        commits,
+        twoAuthorSessions,
+        excludedHashes,
+      ).currentScore;
+
+      // Verify — two authors get more total effective hours because
+      // each author's cap is applied independently
+      expect(scoreTwo).toBeLessThan(scoreOne);
     });
   });
 

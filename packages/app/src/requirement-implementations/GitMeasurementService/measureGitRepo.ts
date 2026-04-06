@@ -158,14 +158,21 @@ export default function createGitMeasurement(
           neighborhoodHours: computeCommitNeighborhood(commit.subCommitCount),
         }));
 
-      // Build signals from co-authors (they get a signal at the same timestamp)
+      // Build signals from co-authors. Each co-author gets a reduced
+      // neighborhood: 0.5×, 0.25×, then 0.125× for all subsequent.
+      // This reflects that co-authorship indicates contribution but not
+      // necessarily active work at the commit's exact timestamp.
+      const CO_AUTHOR_WEIGHTS = [0.5, 0.25, 0.125];
       const coAuthorSignals: Signal[] = allCommits.flatMap((commit) =>
         (commit.coAuthors ?? [])
           .filter((coAuthor) => !isBotContributor(coAuthor))
-          .map((coAuthor) => ({
+          .map((coAuthor, index) => ({
             timestamp: commit.timestamp,
             author: coAuthor,
-            neighborhoodHours: BASE_NEIGHBORHOOD,
+            neighborhoodHours:
+              BASE_NEIGHBORHOOD *
+              (CO_AUTHOR_WEIGHTS[index] ??
+                CO_AUTHOR_WEIGHTS[CO_AUTHOR_WEIGHTS.length - 1]!),
           })),
       );
 

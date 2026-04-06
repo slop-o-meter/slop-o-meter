@@ -13,6 +13,8 @@ const COMPLEXITY_WEIGHT = 0.05;
 const LINES_PER_HOUR = 40;
 const CORE_RAMP_START = 10;
 const CORE_RAMP_END = 60;
+const WEEKLY_HOURS_FULL = 40;
+const WEEKLY_HOURS_CAP = 80;
 
 // --- Main Entry Point ---
 
@@ -113,7 +115,8 @@ function computeWeeklyEffectiveHours(
   sessions: Session[],
   contributorProfiles: Map<string, ContributorProfile>,
 ): Map<string, number> {
-  const weekHours = new Map<string, number>();
+  // First, accumulate raw effective hours per author per week
+  const authorWeekHours = new Map<string, Map<string, number>>();
 
   for (const session of sessions) {
     const week = `${String(session.startTime.weekYear)}-W${String(session.startTime.weekNumber).padStart(2, "0")}`;
@@ -121,10 +124,45 @@ function computeWeeklyEffectiveHours(
       contributorProfiles.get(session.author),
     );
     const effectiveHours = session.durationHours * coreFactor;
-    weekHours.set(week, (weekHours.get(week) ?? 0) + effectiveHours);
+
+    let weekMap = authorWeekHours.get(session.author);
+    if (!weekMap) {
+      weekMap = new Map();
+      authorWeekHours.set(session.author, weekMap);
+    }
+    weekMap.set(week, (weekMap.get(week) ?? 0) + effectiveHours);
+  }
+
+  // Then, apply per-author weekly cap and sum across authors
+  const weekHours = new Map<string, number>();
+
+  for (const [, weekMap] of authorWeekHours) {
+    for (const [week, rawHours] of weekMap) {
+      const cappedHours = capWeeklyHours(rawHours);
+      weekHours.set(week, (weekHours.get(week) ?? 0) + cappedHours);
+    }
   }
 
   return weekHours;
+}
+
+/**
+ * Caps a single contributor's weekly effective hours. The first
+ * WEEKLY_HOURS_FULL hours count fully; hours between WEEKLY_HOURS_FULL
+ * and WEEKLY_HOURS_CAP degrade linearly to zero; hours above
+ * WEEKLY_HOURS_CAP contribute nothing.
+ */
+function capWeeklyHours(hours: number): number {
+  if (hours <= WEEKLY_HOURS_FULL) {
+    return hours;
+  }
+  if (hours >= WEEKLY_HOURS_CAP) {
+    return WEEKLY_HOURS_FULL + (WEEKLY_HOURS_CAP - WEEKLY_HOURS_FULL) / 2;
+  }
+  const overageRatio =
+    (hours - WEEKLY_HOURS_FULL) / (WEEKLY_HOURS_CAP - WEEKLY_HOURS_FULL);
+  const overageHours = hours - WEEKLY_HOURS_FULL;
+  return WEEKLY_HOURS_FULL + overageHours * (1 - overageRatio);
 }
 
 // --- Core Factor ---
