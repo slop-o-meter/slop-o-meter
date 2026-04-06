@@ -149,7 +149,13 @@ The following signals are used to estimate human activity:
   The neighborhood size scales with the number of sub-commits (see Squash Merge
   Detection below).
 - **GitHub events**: PR comments, issue comments, and PR reviews. Each generates
-  a neighborhood of `BASE_NEIGHBORHOOD` hours.
+  a neighborhood of `BASE_NEIGHBORHOOD` hours. GitHub events use login names
+  (e.g. `octocat`) while git commits use emails (e.g. `octocat@example.com`). To
+  match them, logins are resolved to git emails via two strategies:
+  1. Extract logins from noreply-format emails (`{id}+{login}@...`) in the
+     commit history.
+  2. For remaining logins, query the GitHub commits API to find commits by that
+     author and extract the email.
 
 Bot-generated signals are excluded (see Bot Detection below).
 

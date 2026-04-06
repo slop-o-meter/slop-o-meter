@@ -69,6 +69,7 @@ export default class GitMeasurementService implements MeasurementService {
         onProgress: this.options.onProgress,
         outlierClassifier,
         minimumCommits: this.options.minimumCommits,
+        githubToken: this.options.githubToken,
       });
       const result = await gitMeasurement.measure(
         cloneUrl,

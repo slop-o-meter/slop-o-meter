@@ -32,6 +32,7 @@ interface GitMeasurementOptions {
   ) => void | Promise<void>;
   outlierClassifier?: OutlierClassifier;
   minimumCommits?: number;
+  githubToken?: string;
 }
 
 interface GitMeasurementResult {
@@ -179,11 +180,13 @@ export default function createGitMeasurement(
       // Fetch GitHub event signals
       let githubSignals: Signal[] = [];
       try {
-        githubSignals = await fetchGithubEventSignals(
+        githubSignals = await fetchGithubEventSignals({
           owner,
           repo,
-          BASE_NEIGHBORHOOD,
-        );
+          neighborhoodHours: BASE_NEIGHBORHOOD,
+          commits: allCommits,
+          githubToken: options?.githubToken,
+        });
       } catch {
         // GitHub events are optional; continue without them
       }
