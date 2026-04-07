@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type {
   ExcludedHash,
   MeasurementCommit,
-  MeasurementSession,
+  MeasurementSignal,
 } from "../../requirements/MeasurementService.js";
 import toMeasurement from "./GitMeasurement.js";
 
@@ -52,27 +52,25 @@ function weeklyCommits(
   );
 }
 
-function makeSession(
+function makeSignal(
   week: string,
   author: string,
-  durationHours: number,
-): MeasurementSession {
-  const endTime = DateTime.fromISO(week).plus({ days: 3, hours: 10 });
-  const startTime = endTime.minus({ hours: durationHours });
+  neighborhoodHours: number,
+): MeasurementSignal {
+  const timestamp = DateTime.fromISO(week).plus({ days: 3, hours: 10 });
   return {
     author,
-    startTime: startTime.toISO()!,
-    endTime: endTime.toISO()!,
-    durationHours,
+    timestamp: timestamp.toISO()!,
+    neighborhoodHours,
   };
 }
 
-function weeklySessions(
+function weeklySignals(
   weeks: string[],
   hoursPerWeek: number,
   author = "dev@example.com",
-): MeasurementSession[] {
-  return weeks.map((week) => makeSession(week, author, hoursPerWeek));
+): MeasurementSignal[] {
+  return weeks.map((week) => makeSignal(week, author, hoursPerWeek));
 }
 
 // Creates background commits to build up contributor profiles
@@ -97,13 +95,13 @@ function coreHistory(
 
 function runMeasurement(
   commits: MeasurementCommit[],
-  sessions: MeasurementSession[],
+  signals: MeasurementSignal[],
   excludedHashes?: Set<string>,
 ) {
   const excluded: ExcludedHash[] = excludedHashes
     ? [...excludedHashes].map((hash) => ({ hash, reason: "auto" as const }))
     : [];
-  return toMeasurement({ commits, sessions, excludedHashes: excluded });
+  return toMeasurement({ commits, signals, excludedHashes: excluded });
 }
 
 describe("toMeasurement", () => {
@@ -129,10 +127,10 @@ describe("toMeasurement", () => {
         ...history,
         ...weeklyCommits([{ additions: 800, deletions: 0 }]),
       ];
-      const sessions = weeklySessions(["2025-W01"], 25);
+      const signals = weeklySignals(["2025-W01"], 25);
 
       // Exercise
-      const result = runMeasurement(commits, sessions, excludedHashes);
+      const result = runMeasurement(commits, signals, excludedHashes);
 
       // Verify
       expect(result.currentScore).toBe(0);
@@ -151,16 +149,16 @@ describe("toMeasurement", () => {
         { additions: 800, deletions: 0 },
         { additions: 3000, deletions: 0 },
       ]);
-      const sessions = [
-        ...weeklySessions(
+      const signals = [
+        ...weeklySignals(
           Array.from({ length: 7 }, (_, i) => weekLabel(i)),
           25,
         ),
-        makeSession("2025-W08", "dev@example.com", 2), // only 2h = 80 LOC
+        makeSignal("2025-W08", "dev@example.com", 2), // only 2h = 80 LOC
       ];
 
       // Exercise
-      const result = runMeasurement(commits, sessions);
+      const result = runMeasurement(commits, signals);
 
       // Verify
       expect(result.currentScore).toBeGreaterThan(0);
@@ -198,11 +196,11 @@ describe("toMeasurement", () => {
         ]),
       ];
 
-      const fewHoursSessions = weeklySessions(
+      const fewHoursSignals = weeklySignals(
         Array.from({ length: 7 }, (_, i) => weekLabel(i)),
         2,
       );
-      const manyHoursSessions = weeklySessions(
+      const manyHoursSignals = weeklySignals(
         Array.from({ length: 7 }, (_, i) => weekLabel(i)),
         40,
       );
@@ -210,11 +208,11 @@ describe("toMeasurement", () => {
       // Exercise
       const scoreFewHours = runMeasurement(
         commits,
-        fewHoursSessions,
+        fewHoursSignals,
       ).currentScore;
       const scoreManyHours = runMeasurement(
         commits,
-        manyHoursSessions,
+        manyHoursSignals,
       ).currentScore;
 
       // Verify
@@ -236,14 +234,14 @@ describe("toMeasurement", () => {
         ]),
       ];
 
-      const coreSession = [makeSession("2025-W07", "core@example.com", 20)];
-      const drivebySession = [
-        makeSession("2025-W07", "driveby@example.com", 20),
+      const coreSignals = [makeSignal("2025-W07", "core@example.com", 20)];
+      const drivebySignals = [
+        makeSignal("2025-W07", "driveby@example.com", 20),
       ];
 
       // Exercise
-      const scoreCore = runMeasurement(commits, coreSession).currentScore;
-      const scoreDriveby = runMeasurement(commits, drivebySession).currentScore;
+      const scoreCore = runMeasurement(commits, coreSignals).currentScore;
+      const scoreDriveby = runMeasurement(commits, drivebySignals).currentScore;
 
       // Verify — drive-by has 0 core factor, so their time doesn't count
       expect(scoreDriveby).toBeGreaterThan(scoreCore);
@@ -267,28 +265,28 @@ describe("toMeasurement", () => {
 
       // 5 × 30h sessions for one author = 150h effective (after core
       // factor), well above the cap
-      const oneAuthorSessions = Array.from({ length: 5 }, () =>
-        makeSession("2025-W01", "a@example.com", 30),
+      const oneAuthorSignals = Array.from({ length: 5 }, () =>
+        makeSignal("2025-W01", "a@example.com", 30),
       );
       // Split across two authors: each gets 2-3 × 30h sessions
-      const twoAuthorSessions = [
+      const twoAuthorSignals = [
         ...Array.from({ length: 3 }, () =>
-          makeSession("2025-W01", "a@example.com", 30),
+          makeSignal("2025-W01", "a@example.com", 30),
         ),
         ...Array.from({ length: 2 }, () =>
-          makeSession("2025-W01", "b@example.com", 30),
+          makeSignal("2025-W01", "b@example.com", 30),
         ),
       ];
 
       // Exercise
       const scoreOne = runMeasurement(
         commits,
-        oneAuthorSessions,
+        oneAuthorSignals,
         excludedHashes,
       ).currentScore;
       const scoreTwo = runMeasurement(
         commits,
-        twoAuthorSessions,
+        twoAuthorSignals,
         excludedHashes,
       ).currentScore;
 
@@ -308,10 +306,10 @@ describe("toMeasurement", () => {
       const commits = Array.from({ length: 15 }, () =>
         makeCommit("2025-W01", coreAuthor, 1000 / 15),
       );
-      const sessions = [makeSession("2025-W01", coreAuthor, 5)];
+      const signals = [makeSignal("2025-W01", coreAuthor, 5)];
 
       // Exercise
-      const result = runMeasurement(commits, sessions);
+      const result = runMeasurement(commits, signals);
 
       // Verify — score is less than 1 because dampening reduces the
       // attention cost below the raw line count, letting session time
@@ -330,7 +328,7 @@ describe("toMeasurement", () => {
       const smallCommits = Array.from({ length: 15 }, () =>
         makeCommit(weekLabel(0), coreAuthor, 200),
       );
-      const smallSessions = [makeSession(weekLabel(0), coreAuthor, 20)];
+      const smallSignals = [makeSignal(weekLabel(0), coreAuthor, 20)];
 
       const rampUpCommits = Array.from({ length: 15 }, (_, weekIndex) =>
         makeCommit(weekLabel(weekIndex), coreAuthor, 800),
@@ -339,21 +337,21 @@ describe("toMeasurement", () => {
         ...rampUpCommits,
         makeCommit(weekLabel(15), coreAuthor, 3000),
       ];
-      const largeSessions = [
+      const largeSignals = [
         ...rampUpCommits.map((_, weekIndex) =>
-          makeSession(weekLabel(weekIndex), coreAuthor, 1),
+          makeSignal(weekLabel(weekIndex), coreAuthor, 1),
         ),
-        makeSession(weekLabel(15), coreAuthor, 20),
+        makeSignal(weekLabel(15), coreAuthor, 20),
       ];
 
       // Exercise
       const scoreSmall = runMeasurement(
         smallCommits,
-        smallSessions,
+        smallSignals,
       ).currentScore;
       const scoreLarge = runMeasurement(
         largeCommits,
-        largeSessions,
+        largeSignals,
       ).currentScore;
 
       // Verify — small codebase has lower dampening, so the same additions
@@ -440,10 +438,10 @@ describe("toMeasurement", () => {
         { additions: 100, deletions: 0 },
         { additions: 100, deletions: 0 },
       ]);
-      const sessions = weeklySessions(["2025-W01", "2025-W02"], 100);
+      const signals = weeklySignals(["2025-W01", "2025-W02"], 100);
 
       // Exercise
-      const result = runMeasurement(commits, sessions);
+      const result = runMeasurement(commits, signals);
 
       // Verify
       for (const entry of result.history) {
@@ -493,10 +491,14 @@ describe("toMeasurement", () => {
       const result = runMeasurement(commits, []);
 
       // Verify
-      expect(result.weeklyDiagnostics).toHaveLength(result.history.length);
+      expect(result.diagnostics.weeklyDiagnostics).toHaveLength(
+        result.history.length,
+      );
       for (let i = 0; i < result.history.length; i++) {
-        expect(result.weeklyDiagnostics[i]!.week).toBe(result.history[i]!.week);
-        expect(result.weeklyDiagnostics[i]!.score).toBe(
+        expect(result.diagnostics.weeklyDiagnostics[i]!.week).toBe(
+          result.history[i]!.week,
+        );
+        expect(result.diagnostics.weeklyDiagnostics[i]!.score).toBe(
           result.history[i]!.score,
         );
       }
@@ -510,12 +512,14 @@ describe("toMeasurement", () => {
         ...history,
         ...weeklyCommits([{ additions: 3000, deletions: 500 }]),
       ];
-      const sessions = [makeSession("2025-W01", "dev@example.com", 20)];
+      const signals = [makeSignal("2025-W01", "dev@example.com", 20)];
 
       // Exercise
-      const result = runMeasurement(commits, sessions, excludedHashes);
+      const result = runMeasurement(commits, signals, excludedHashes);
       const lastWeek =
-        result.weeklyDiagnostics[result.weeklyDiagnostics.length - 1]!;
+        result.diagnostics.weeklyDiagnostics[
+          result.diagnostics.weeklyDiagnostics.length - 1
+        ]!;
 
       // Verify — all fields are populated with sensible values
       expect(lastWeek.weightedAdditions).toBe(3000);
@@ -537,12 +541,14 @@ describe("toMeasurement", () => {
         ...history,
         ...weeklyCommits([{ additions: 3000, deletions: 0 }]),
       ];
-      const sessions = [makeSession("2025-W01", "dev@example.com", 20)];
+      const signals = [makeSignal("2025-W01", "dev@example.com", 20)];
 
       // Exercise
-      const result = runMeasurement(commits, sessions, excludedHashes);
+      const result = runMeasurement(commits, signals, excludedHashes);
       const lastWeek =
-        result.weeklyDiagnostics[result.weeklyDiagnostics.length - 1]!;
+        result.diagnostics.weeklyDiagnostics[
+          result.diagnostics.weeklyDiagnostics.length - 1
+        ]!;
 
       // Verify
       expect(lastWeek.contributors.length).toBeGreaterThan(0);
@@ -560,7 +566,7 @@ describe("toMeasurement", () => {
       const result = runMeasurement([], []);
 
       // Verify
-      expect(result.weeklyDiagnostics).toEqual([]);
+      expect(result.diagnostics.weeklyDiagnostics).toEqual([]);
     });
   });
 });

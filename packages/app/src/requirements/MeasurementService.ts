@@ -3,16 +3,22 @@ export interface MeasurementResult {
   history: { week: string; score: number }[];
   readmeExcerpt: string;
   measurementData: MeasurementData;
+  diagnostics: MeasurementDiagnostics;
 }
 
-// --- MeasurementData: inputs for replay + diagnostics output ---
+// --- MeasurementData: raw inputs captured during measurement ---
 
 export interface MeasurementData {
   commits: MeasurementCommit[];
   signals: MeasurementSignal[];
-  sessions: MeasurementSession[];
   excludedHashes: ExcludedHash[];
   outlierClassifications: OutlierClassificationEntry[];
+}
+
+// --- MeasurementDiagnostics: derived output for inspection ---
+
+export interface MeasurementDiagnostics {
+  sessions: MeasurementSession[];
   weeklyDiagnostics: WeeklyDiagnostics[];
 }
 

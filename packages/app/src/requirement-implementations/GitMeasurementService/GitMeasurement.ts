@@ -2,6 +2,7 @@ import { DateTime } from "luxon";
 import type {
   ContributorWeekDiagnostics,
   MeasurementData,
+  MeasurementDiagnostics,
   MeasurementSession,
   WeeklyDiagnostics,
 } from "../../requirements/MeasurementService.js";
@@ -9,6 +10,8 @@ import aggregateCommits, {
   type ContributorProfile,
   type WeeklyData,
 } from "./aggregation.js";
+import { computeSessions } from "./sessions.js";
+import type { Signal } from "./signals.js";
 
 // --- Constants ---
 
@@ -46,11 +49,11 @@ export interface MeasurementOptions {
 export interface MeasurementOutput {
   currentScore: number;
   history: { week: string; score: number }[];
-  weeklyDiagnostics: WeeklyDiagnostics[];
+  diagnostics: MeasurementDiagnostics;
 }
 
 export default function toMeasurement(
-  data: Pick<MeasurementData, "commits" | "sessions" | "excludedHashes">,
+  data: Pick<MeasurementData, "commits" | "signals" | "excludedHashes">,
   options?: MeasurementOptions,
 ): MeasurementOutput {
   const excludedHashSet = new Set(data.excludedHashes.map((eh) => eh.hash));
@@ -61,17 +64,35 @@ export default function toMeasurement(
   const completeWeeklyData = fillWeekGaps(weeklyData);
 
   if (completeWeeklyData.length === 0) {
-    return { currentScore: 0, history: [], weeklyDiagnostics: [] };
+    return {
+      currentScore: 0,
+      history: [],
+      diagnostics: { sessions: [], weeklyDiagnostics: [] },
+    };
   }
 
   const linesPerHour = options?.linesPerHour ?? LINES_PER_HOUR;
 
   const weeklyCapMode = options?.weeklyCapMode ?? "concave";
 
+  // Derive sessions from signals
+  const signalObjects: Signal[] = data.signals.map((signal) => ({
+    timestamp: signal.timestamp,
+    author: signal.author,
+    neighborhoodHours: signal.neighborhoodHours,
+  }));
+  const sessions = computeSessions(signalObjects);
+  const serializedSessions: MeasurementSession[] = sessions.map((session) => ({
+    author: session.author,
+    startTime: session.startTime.toISO()!,
+    endTime: session.endTime.toISO()!,
+    durationHours: session.durationHours,
+  }));
+
   // Pre-compute session hours per week, weighted by contributor core factor
   const { weekTotals: weeklyEffectiveHours, authorWeekDetail } =
     computeWeeklyEffectiveHours(
-      data.sessions,
+      serializedSessions,
       contributorProfiles,
       weeklyCapMode,
     );
@@ -161,7 +182,14 @@ export default function toMeasurement(
   const currentScore =
     history.length > 0 ? history[history.length - 1]!.score : 0;
 
-  return { currentScore, history, weeklyDiagnostics };
+  return {
+    currentScore,
+    history,
+    diagnostics: {
+      sessions: serializedSessions,
+      weeklyDiagnostics,
+    },
+  };
 }
 
 // --- Per-Contributor Diagnostics ---
