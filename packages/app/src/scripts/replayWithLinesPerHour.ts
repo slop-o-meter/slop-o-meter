@@ -40,7 +40,10 @@ for (const owner of readdirSync(dataDir)) {
       readFileSync(join(ownerDir, file), "utf-8"),
     ) as MeasurementData;
 
-    const result = toMeasurement(data, { linesPerHour, weeklyCapMode });
+    const result = toMeasurement(data, {
+      humanLinesPerHour: linesPerHour,
+      overtimeCurve: weeklyCapMode,
+    });
     results.push({
       project: `${owner}/${repo}`,
       score: result.currentScore,

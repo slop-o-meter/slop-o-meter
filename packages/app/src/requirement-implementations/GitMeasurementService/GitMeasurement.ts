@@ -42,8 +42,14 @@ interface WeeklyEffectiveHoursResult {
 export type WeeklyCapMode = "linear-ramp" | "cosine" | "concave";
 
 export interface MeasurementOptions {
-  linesPerHour?: number;
-  weeklyCapMode?: WeeklyCapMode;
+  humanLinesPerHour?: number;
+  overtimeCurve?: WeeklyCapMode;
+  fullCreditHoursPerWeek?: number;
+  maxHoursPerWeek?: number;
+  minCommitsForCredit?: number;
+  commitsForFullCredit?: number;
+  smallRepoThreshold?: number;
+  largeRepoComplexityBonus?: number;
 }
 
 export interface MeasurementOutput {
@@ -71,9 +77,15 @@ export default function toMeasurement(
     };
   }
 
-  const linesPerHour = options?.linesPerHour ?? LINES_PER_HOUR;
-
-  const weeklyCapMode = options?.weeklyCapMode ?? "concave";
+  const linesPerHour = options?.humanLinesPerHour ?? LINES_PER_HOUR;
+  const weeklyCapMode = options?.overtimeCurve ?? "concave";
+  const bootstrapThreshold = options?.smallRepoThreshold ?? BOOTSTRAP_THRESHOLD;
+  const complexityWeight =
+    options?.largeRepoComplexityBonus ?? COMPLEXITY_WEIGHT;
+  const coreRampStart = options?.minCommitsForCredit ?? CORE_RAMP_START;
+  const coreRampEnd = options?.commitsForFullCredit ?? CORE_RAMP_END;
+  const weeklyHoursFull = options?.fullCreditHoursPerWeek ?? WEEKLY_HOURS_FULL;
+  const weeklyHoursCap = options?.maxHoursPerWeek ?? WEEKLY_HOURS_CAP;
 
   // Derive sessions from signals
   const signalObjects: Signal[] = data.signals.map((signal) => ({
@@ -95,6 +107,7 @@ export default function toMeasurement(
       serializedSessions,
       contributorProfiles,
       weeklyCapMode,
+      { coreRampStart, coreRampEnd, weeklyHoursFull, weeklyHoursCap },
     );
 
   let cumulativeSlop = 0;
@@ -121,7 +134,11 @@ export default function toMeasurement(
     );
 
     // Step 2: Apply codebase size dampening to compute attention cost.
-    const sizeDampening = computeSizeDampening(cumulativeRawLines);
+    const sizeDampening = computeSizeDampening(
+      cumulativeRawLines,
+      bootstrapThreshold,
+      complexityWeight,
+    );
     const netAdditions = Math.max(
       0,
       weekData.weightedAdditions - weekData.weightedDeletions,
@@ -218,19 +235,31 @@ function buildContributorDiagnostics(
 
 // --- Codebase Size Dampening ---
 
-function computeSizeDampening(cumulativeWeightedLines: number): number {
-  const bootstrap = Math.min(1, cumulativeWeightedLines / BOOTSTRAP_THRESHOLD);
+function computeSizeDampening(
+  cumulativeWeightedLines: number,
+  bootstrapThreshold: number,
+  complexityWeight: number,
+): number {
+  const bootstrap = Math.min(1, cumulativeWeightedLines / bootstrapThreshold);
   const complexityBonus =
-    COMPLEXITY_WEIGHT * Math.log2(1 + cumulativeWeightedLines / 100_000);
+    complexityWeight * Math.log2(1 + cumulativeWeightedLines / 100_000);
   return bootstrap + complexityBonus;
 }
 
 // --- Effective Hours (Session Time × Core Factor) ---
 
+interface EffectiveHoursParams {
+  coreRampStart: number;
+  coreRampEnd: number;
+  weeklyHoursFull: number;
+  weeklyHoursCap: number;
+}
+
 function computeWeeklyEffectiveHours(
   sessions: MeasurementSession[],
   contributorProfiles: Map<string, ContributorProfile>,
   weeklyCapMode: WeeklyCapMode,
+  params: EffectiveHoursParams,
 ): WeeklyEffectiveHoursResult {
   // Accumulate raw session hours and effective hours per author per week
   const authorWeekRaw = new Map<string, Map<string, number>>();
@@ -241,6 +270,8 @@ function computeWeeklyEffectiveHours(
     const week = `${String(startTime.weekYear)}-W${String(startTime.weekNumber).padStart(2, "0")}`;
     const coreFactor = computeCoreFactor(
       contributorProfiles.get(session.author),
+      params.coreRampStart,
+      params.coreRampEnd,
     );
     authorCoreFactors.set(session.author, coreFactor);
 
@@ -263,7 +294,12 @@ function computeWeeklyEffectiveHours(
 
     for (const [week, rawSessionHours] of weekMap) {
       const effectiveHours = rawSessionHours * coreFactor;
-      const cappedHours = capWeeklyHours(effectiveHours, weeklyCapMode);
+      const cappedHours = capWeeklyHours(
+        effectiveHours,
+        weeklyCapMode,
+        params.weeklyHoursFull,
+        params.weeklyHoursCap,
+      );
 
       detailMap.set(week, {
         rawSessionHours,
@@ -291,39 +327,44 @@ function computeWeeklyEffectiveHours(
  * "concave": gentle early decline, steep late, marginal = 1 - (h/cap)².
  *   Integral at cap = 2*cap/3.
  */
-function capWeeklyHours(hours: number, mode: WeeklyCapMode): number {
-  const capped = Math.min(hours, WEEKLY_HOURS_CAP);
+function capWeeklyHours(
+  hours: number,
+  mode: WeeklyCapMode,
+  weeklyHoursFull: number,
+  weeklyHoursCap: number,
+): number {
+  const capped = Math.min(hours, weeklyHoursCap);
 
   switch (mode) {
     case "linear-ramp": {
-      if (capped <= WEEKLY_HOURS_FULL) {
+      if (capped <= weeklyHoursFull) {
         return capped;
       }
       const overageRatio =
-        (capped - WEEKLY_HOURS_FULL) / (WEEKLY_HOURS_CAP - WEEKLY_HOURS_FULL);
-      const overageHours = capped - WEEKLY_HOURS_FULL;
-      return WEEKLY_HOURS_FULL + overageHours * (1 - overageRatio);
+        (capped - weeklyHoursFull) / (weeklyHoursCap - weeklyHoursFull);
+      const overageHours = capped - weeklyHoursFull;
+      return weeklyHoursFull + overageHours * (1 - overageRatio);
     }
     case "cosine": {
-      // Integral of (1 + cos(πh/cap)) / 2 from 0 to H
-      // = H/2 + cap/(2π) * sin(πH/cap)
-      const cap = WEEKLY_HOURS_CAP;
       return (
-        capped / 2 + (cap / (2 * Math.PI)) * Math.sin((Math.PI * capped) / cap)
+        capped / 2 +
+        (weeklyHoursCap / (2 * Math.PI)) *
+          Math.sin((Math.PI * capped) / weeklyHoursCap)
       );
     }
     case "concave": {
-      // Integral of (1 - (h/cap)²) from 0 to H
-      // = H - H³/(3*cap²)
-      const cap = WEEKLY_HOURS_CAP;
-      return capped - capped ** 3 / (3 * cap ** 2);
+      return capped - capped ** 3 / (3 * weeklyHoursCap ** 2);
     }
   }
 }
 
 // --- Core Factor ---
 
-function computeCoreFactor(profile: ContributorProfile | undefined): number {
+function computeCoreFactor(
+  profile: ContributorProfile | undefined,
+  coreRampStart: number,
+  coreRampEnd: number,
+): number {
   if (!profile) {
     return 0;
   }
@@ -332,8 +373,7 @@ function computeCoreFactor(profile: ContributorProfile | undefined): number {
     1,
     Math.max(
       0,
-      (profile.totalCommits - CORE_RAMP_START) /
-        (CORE_RAMP_END - CORE_RAMP_START),
+      (profile.totalCommits - coreRampStart) / (coreRampEnd - coreRampStart),
     ),
   );
 

@@ -77,4 +77,18 @@ api.get("/project/:owner/:repo", async (context) => {
   return context.json({ found: true, project });
 });
 
+api.get("/project/:owner/:repo/measurement-data", async (context) => {
+  const owner = validateSegment(context.req.param("owner"));
+  const repo = validateSegment(context.req.param("repo"));
+  const data = await context.var.projectRepository.getMeasurementData(
+    owner,
+    repo,
+  );
+  if (!data) {
+    return context.json({ found: false });
+  }
+  context.header("Cache-Control", "public, max-age=3600");
+  return context.body(data, 200, { "Content-Type": "application/json" });
+});
+
 export default api;

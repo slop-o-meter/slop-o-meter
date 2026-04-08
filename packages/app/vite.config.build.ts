@@ -11,11 +11,13 @@ const configs = {
       copyPublicDir: false,
       rollupOptions: {
         input: {
-          "HomePage.client": "src/web/ui/pages/HomePage/HomePage.client.js",
+          "HomePage.client": "src/web/ui/pages/HomePage/HomePage.client.ts",
           "ProjectPage.client":
-            "src/web/ui/pages/ProjectPage/ProjectPage.client.js",
+            "src/web/ui/pages/ProjectPage/ProjectPage.client.ts",
           "HistoryCharts.client":
-            "src/web/ui/components/HistoryCharts/HistoryCharts.client.js",
+            "src/web/ui/components/HistoryCharts/HistoryCharts.client.ts",
+          "TunableParams.client":
+            "src/web/ui/components/TunableParams/TunableParams.client.ts",
         },
         output: { entryFileNames: "[name].[hash].js" },
       },

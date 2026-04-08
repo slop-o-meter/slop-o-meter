@@ -33,4 +33,5 @@ export interface ProjectRepository {
     measurementDiagnosticsJson?: string,
   ): Promise<void>;
   setError(owner: string, repo: string, reason?: string): Promise<void>;
+  getMeasurementData(owner: string, repo: string): Promise<string | null>;
 }

@@ -197,7 +197,7 @@ export default function HomePage({ highlightedProjects }: Props) {
 
       <Footer />
 
-      <script src={componentAsset("HomePage.client.js")} defer />
+      <script src={componentAsset("HomePage.client.ts")} defer />
     </>
   );
 }

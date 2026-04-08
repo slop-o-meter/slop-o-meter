@@ -114,6 +114,23 @@ export default class S3ProjectRepository implements ProjectRepository {
     await this.writeProject(project);
   }
 
+  async getMeasurementData(
+    owner: string,
+    repo: string,
+  ): Promise<string | null> {
+    try {
+      const result = await this.s3Client.send(
+        new GetObjectCommand({
+          Bucket: this.bucketName,
+          Key: `projects/${owner}/${repo}.measurement-data.json`,
+        }),
+      );
+      return (await result.Body?.transformToString()) ?? null;
+    } catch {
+      return null;
+    }
+  }
+
   private storageKey(owner: string, repo: string): string {
     return `projects/${owner}/${repo}.json`;
   }

@@ -95,6 +95,20 @@ export default class FilesystemProjectRepository implements ProjectRepository {
     this.writeProject(project);
   }
 
+  async getMeasurementData(
+    owner: string,
+    repo: string,
+  ): Promise<string | null> {
+    const filePath = join(
+      this.dataDirectory,
+      `projects/${owner}/${repo}.measurement-data.json`,
+    );
+    if (!existsSync(filePath)) {
+      return null;
+    }
+    return readFileSync(filePath, "utf-8");
+  }
+
   private storageKey(owner: string, repo: string): string {
     return `projects/${owner}/${repo}.json`;
   }
