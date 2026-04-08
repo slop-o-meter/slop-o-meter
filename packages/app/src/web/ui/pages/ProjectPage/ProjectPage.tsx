@@ -57,7 +57,7 @@ export default function ProjectPage({ owner, repo, project }: Props) {
 
       {hasMeasurement ? <TunableParams owner={owner} repo={repo} /> : null}
 
-      <script src={componentAsset("ProjectPage.client.ts")} defer />
+      <script type="module" src={componentAsset("ProjectPage.client.ts")} />
     </>
   );
 }
