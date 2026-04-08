@@ -40,6 +40,8 @@ a test.
 - `yarn dev`: starts the local dev server
 - `yarn test`: runs tests
 - `yarn check-types`: type-checks the app
+- `yarn check-linting`: runs oxlint to check for lint errors
+- `yarn fix-linting`: runs oxlint with auto-fix
 - `yarn fix-formatting`: run this after you're done making some changes
 - `yarn build`: builds the app for deployment
 - `yarn deploy:production`: builds and deploys via CDK

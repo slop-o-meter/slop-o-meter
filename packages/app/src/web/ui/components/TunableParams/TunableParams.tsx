@@ -83,12 +83,13 @@ export default function TunableParams({ owner, repo }: Props) {
             />
             <div class={tunableParamsGroupClass}>
               <div class={tunableParamsLabelRowClass}>
-                <label class={tunableParamsLabelClass}>
+                <label class={tunableParamsLabelClass} htmlFor="overtime-curve">
                   Overtime discount curve
                 </label>
                 <InfoTip text="Shape of the diminishing returns between full-credit hours and max hours." />
               </div>
               <select
+                id="overtime-curve"
                 class={tunableParamsSelectClass}
                 data-tunable-param="overtimeCurve"
               >
