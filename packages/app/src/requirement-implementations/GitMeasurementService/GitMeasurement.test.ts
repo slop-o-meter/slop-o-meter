@@ -9,8 +9,6 @@ import toMeasurement from "./GitMeasurement.js";
 
 // --- Helpers ---
 
-let commitCounter = 0;
-
 function makeCommit(
   week: string,
   author: string,
@@ -19,7 +17,7 @@ function makeCommit(
 ): MeasurementCommit {
   const dt = DateTime.fromISO(week);
   return {
-    hash: `${week}-${author}-${String(additions)}-${String(commitCounter++)}`,
+    hash: crypto.randomUUID(),
     week,
     timestamp: dt.toISO()!,
     author,

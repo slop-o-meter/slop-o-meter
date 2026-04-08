@@ -1,7 +1,7 @@
 /**
  * Replays stored measurement data with different algorithm options.
  *
- * Usage: npx tsx src/scripts/replayWithLinesPerHour.ts <linesPerHour> [capMode]
+ * Usage: yarn tsx src/scripts/replayWithLinesPerHour.ts <linesPerHour> [capMode]
  *   capMode: linear-ramp (default), cosine, concave
  */
 
@@ -15,7 +15,7 @@ import type { MeasurementData } from "../requirements/MeasurementService.js";
 const linesPerHour = Number(process.argv[2]);
 if (!linesPerHour || Number.isNaN(linesPerHour)) {
   console.error(
-    "Usage: npx tsx src/scripts/replayWithLinesPerHour.ts <linesPerHour> [capMode]",
+    "Usage: yarn tsx src/scripts/replayWithLinesPerHour.ts <linesPerHour> [capMode]",
   );
   process.exit(1);
 }

@@ -382,6 +382,9 @@ export default function HistoryCharts({ history }: Props) {
                               : changeChartBarNegativeClass
                           }
                           style={`height: ${String(height)}%; ${isPositive ? `bottom: 50%` : `top: 50%`}`}
+                          {...(isPositive
+                            ? { "data-bar-positive": "" }
+                            : { "data-bar-negative": "" })}
                         />
                       </div>
                     );

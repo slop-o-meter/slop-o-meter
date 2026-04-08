@@ -176,11 +176,14 @@ function SliderParam({
   return (
     <div class={tunableParamsGroupClass}>
       <div class={tunableParamsLabelRowClass}>
-        <label class={tunableParamsLabelClass}>{label}</label>
+        <label class={tunableParamsLabelClass} htmlFor={param}>
+          {label}
+        </label>
         <InfoTip text={tooltip} />
       </div>
       <div class={tunableParamsSliderRowClass}>
         <input
+          id={param}
           class={tunableParamsSliderClass}
           type="range"
           min={String(min)}

@@ -10,7 +10,7 @@ import aggregateCommits, {
   type ContributorProfile,
   type WeeklyData,
 } from "./aggregation.js";
-import { computeSessions } from "./sessions.js";
+import { computeSessions, type Session } from "./sessions.js";
 import type { Signal } from "./signals.js";
 
 // --- Constants ---
@@ -103,12 +103,12 @@ export default function toMeasurement(
 
   // Pre-compute session hours per week, weighted by contributor core factor
   const { weekTotals: weeklyEffectiveHours, authorWeekDetail } =
-    computeWeeklyEffectiveHours(
-      serializedSessions,
-      contributorProfiles,
-      weeklyCapMode,
-      { coreRampStart, coreRampEnd, weeklyHoursFull, weeklyHoursCap },
-    );
+    computeWeeklyEffectiveHours(sessions, contributorProfiles, weeklyCapMode, {
+      coreRampStart,
+      coreRampEnd,
+      weeklyHoursFull,
+      weeklyHoursCap,
+    });
 
   let cumulativeSlop = 0;
   let cumulativeRawLines = 0;
@@ -256,7 +256,7 @@ interface EffectiveHoursParams {
 }
 
 function computeWeeklyEffectiveHours(
-  sessions: MeasurementSession[],
+  sessions: Session[],
   contributorProfiles: Map<string, ContributorProfile>,
   weeklyCapMode: WeeklyCapMode,
   params: EffectiveHoursParams,
@@ -266,8 +266,7 @@ function computeWeeklyEffectiveHours(
   const authorCoreFactors = new Map<string, number>();
 
   for (const session of sessions) {
-    const startTime = DateTime.fromISO(session.startTime);
-    const week = `${String(startTime.weekYear)}-W${String(startTime.weekNumber).padStart(2, "0")}`;
+    const week = `${String(session.startTime.weekYear)}-W${String(session.startTime.weekNumber).padStart(2, "0")}`;
     const coreFactor = computeCoreFactor(
       contributorProfiles.get(session.author),
       params.coreRampStart,

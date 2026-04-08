@@ -1,29 +1,12 @@
 import toMeasurement from "../../../../requirement-implementations/GitMeasurementService/GitMeasurement.js";
 import type { MeasurementOptions } from "../../../../requirement-implementations/GitMeasurementService/GitMeasurement.js";
 import type { MeasurementData } from "../../../../requirements/MeasurementService.js";
-
-// --- Scale items (duplicated from server for client use) ---
-
-const SCALE_IMAGES = [
-  { level: 1, image: "/1.buttered-noodles.avif" },
-  { level: 2, image: "/2.spaghetti-bolognese.avif" },
-  { level: 3, image: "/3.lasagna.avif" },
-  { level: 4, image: "/4.sloppy-joe.avif" },
-  { level: 5, image: "/5.just-the-slop.avif" },
-];
-
-function scoreToDisplay(score: number): number {
-  return score * 5;
-}
-
-function scoreToLevel(score: number): number {
-  const display = Math.round(scoreToDisplay(score) * 10) / 10;
-  return Math.min(5, Math.max(1, Math.floor(display) + 1));
-}
+import scaleItems from "../../data/scaleItems.js";
+import { scoreToDisplay, scoreToLevel } from "../../utils/scoring.js";
 
 function getLevelImage(score: number): string {
   const level = scoreToLevel(score);
-  return SCALE_IMAGES.find((item) => item.level === level)?.image ?? "";
+  return scaleItems.find((item) => item.level === level)?.image ?? "";
 }
 
 function getBarColorVar(score: number): string {
@@ -141,6 +124,12 @@ if (toggle && panel) {
       const response = await fetch(
         `/api/project/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/measurement-data`,
       );
+      if (!response.ok) {
+        if (titleElement) {
+          titleElement.textContent = "Failed to load";
+        }
+        return;
+      }
       const json = await response.json();
       if (json.found === false || !json.commits) {
         if (titleElement) {
@@ -215,7 +204,7 @@ if (toggle && panel) {
       "[data-card-sticker]",
     );
     if (stickerImage) {
-      const scaleItem = SCALE_IMAGES.find((item) => item.level === level);
+      const scaleItem = scaleItems.find((item) => item.level === level);
       if (scaleItem) {
         stickerImage.src = scaleItem.image;
         stickerImage.alt =
@@ -273,8 +262,8 @@ if (toggle && panel) {
 
       bar.setAttribute("data-tooltip-change", change.toFixed(2));
 
-      const positive = bar.querySelector<HTMLElement>("[style*='bottom']");
-      const negative = bar.querySelector<HTMLElement>("[style*='top: 50']");
+      const positive = bar.querySelector<HTMLElement>("[data-bar-positive]");
+      const negative = bar.querySelector<HTMLElement>("[data-bar-negative]");
 
       if (change >= 0) {
         if (positive) {
