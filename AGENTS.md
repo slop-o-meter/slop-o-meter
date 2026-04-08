@@ -8,7 +8,8 @@
 
 ## Tooling & conventions
 
-- **Package manager:** Yarn (Berry) via Corepack. PnP is **not** used.
+- **Package manager:** Yarn (Berry) via Corepack. PnP is **not** used. **Never**
+  use `npx` — always use `yarn` to run scripts and dependencies.
 - Follow existing patterns; keep changes focused and consistent with surrounding
   code.
 - **Never** use abbreviations for variable names, aside from common
