@@ -42,16 +42,23 @@ export default function ProjectCard({
             src={scale.image}
             alt={scale.name}
             class={projectCardStickerImageClass}
+            data-card-sticker
           />
         </div>
       ) : null}
       <span
         class={projectCardScoreClass}
+        data-card-score
         style={`color: color-mix(in srgb, var(--ragu) ${String((Number.parseFloat(score) / 5) * 100)}%, var(--buttered-noodles))`}
       >
         {score}
       </span>
-      <span class={projectCardCommentClass}>{comment}</span>
+      <span
+        class={projectCardCommentClass}
+        style={`--comment-len: ${String(comment.length)}`}
+      >
+        {comment}
+      </span>
     </div>
   );
 

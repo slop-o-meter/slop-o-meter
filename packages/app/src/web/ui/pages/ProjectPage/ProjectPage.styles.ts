@@ -21,12 +21,12 @@ export const projectPageClass = css`
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 4rem 2rem;
+  padding: 5rem 2rem 4rem;
   @media (max-width: 600px) {
-    padding: 2rem 1.5rem;
+    padding: 4rem 1.5rem 2rem;
   }
   @media (min-width: 1100px) {
-    padding: 4rem 3rem;
+    padding: 5rem 3rem 4rem;
     max-width: 1440px;
     margin: 0 auto;
     width: 100%;
@@ -102,21 +102,6 @@ export const errorViewStatusClass = css`
   font-size: 0.85rem;
   color: var(--level-5);
   margin-bottom: 1rem;
-`;
-
-export const backLinkClass = css`
-  align-self: flex-start;
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-family: var(--mono);
-  font-size: 1rem;
-  color: var(--brown-mid);
-  text-decoration: none;
-  margin-bottom: 2rem;
-  &:hover {
-    color: var(--brown);
-  }
 `;
 
 export const githubLinkClass = css`

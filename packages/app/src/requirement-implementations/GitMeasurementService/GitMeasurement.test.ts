@@ -1,8 +1,11 @@
 import { DateTime } from "luxon";
 import { describe, expect, it } from "vitest";
+import type {
+  ExcludedHash,
+  MeasurementCommit,
+  MeasurementSignal,
+} from "../../requirements/MeasurementService.js";
 import toMeasurement from "./GitMeasurement.js";
-import type { Session } from "./sessions.js";
-import type Commit from "./types.js";
 
 // --- Helpers ---
 
@@ -11,17 +14,17 @@ function makeCommit(
   author: string,
   additions: number,
   deletions = 0,
-): Commit {
+): MeasurementCommit {
   const dt = DateTime.fromISO(week);
   return {
-    hash: `${week}-${author}-${String(additions)}`,
+    hash: crypto.randomUUID(),
     week,
     timestamp: dt.toISO()!,
     author,
     subject: "",
-    additions,
-    deletions,
-    fileStats: [],
+    weightedAdditions: additions,
+    weightedDeletions: deletions,
+    fileCount: 0,
     coAuthors: [],
     subCommitCount: 0,
   };
@@ -34,7 +37,7 @@ function weekLabel(index: number): string {
 function weeklyCommits(
   rates: { additions: number; deletions: number }[],
   authors: string[] = ["dev@example.com"],
-): Commit[] {
+): MeasurementCommit[] {
   return rates.flatMap((rate, index) =>
     authors.map((author) =>
       makeCommit(
@@ -47,33 +50,36 @@ function weeklyCommits(
   );
 }
 
-function makeSession(
+function makeSignal(
   week: string,
   author: string,
-  durationHours: number,
-): Session {
-  const endTime = DateTime.fromISO(week).plus({ days: 3, hours: 10 });
-  const startTime = endTime.minus({ hours: durationHours });
-  return { author, startTime, endTime, durationHours };
+  neighborhoodHours: number,
+): MeasurementSignal {
+  const timestamp = DateTime.fromISO(week).plus({ days: 3, hours: 10 });
+  return {
+    author,
+    timestamp: timestamp.toISO()!,
+    neighborhoodHours,
+  };
 }
 
-function weeklySessions(
+function weeklySignals(
   weeks: string[],
   hoursPerWeek: number,
   author = "dev@example.com",
-): Session[] {
-  return weeks.map((week) => makeSession(week, author, hoursPerWeek));
+): MeasurementSignal[] {
+  return weeks.map((week) => makeSignal(week, author, hoursPerWeek));
 }
 
 // Creates background commits to build up contributor profiles
 function coreHistory(
   authors: string[],
   options?: { weeks?: number; commitsPerWeek?: number },
-): Commit[] {
+): MeasurementCommit[] {
   const weeks = options?.weeks ?? 15;
   const commitsPerWeek = options?.commitsPerWeek ?? 5;
   return authors.flatMap((author) => {
-    const commits: Commit[] = [];
+    const commits: MeasurementCommit[] = [];
     for (let w = 1; w <= weeks; w++) {
       for (let c = 0; c < commitsPerWeek; c++) {
         commits.push(
@@ -85,6 +91,17 @@ function coreHistory(
   });
 }
 
+function runMeasurement(
+  commits: MeasurementCommit[],
+  signals: MeasurementSignal[],
+  excludedHashes?: Set<string>,
+) {
+  const excluded: ExcludedHash[] = excludedHashes
+    ? [...excludedHashes].map((hash) => ({ hash, reason: "auto" as const }))
+    : [];
+  return toMeasurement({ commits, signals, excludedHashes: excluded });
+}
+
 describe("toMeasurement", () => {
   describe("basic scoring", () => {
     it("returns score 0 for zero activity", () => {
@@ -92,7 +109,7 @@ describe("toMeasurement", () => {
       const commits = [makeCommit("2025-W01", "dev@example.com", 0, 0)];
 
       // Exercise
-      const result = toMeasurement(commits, []);
+      const result = runMeasurement(commits, []);
 
       // Verify
       expect(result.currentScore).toBe(0);
@@ -108,10 +125,10 @@ describe("toMeasurement", () => {
         ...history,
         ...weeklyCommits([{ additions: 800, deletions: 0 }]),
       ];
-      const sessions = weeklySessions(["2025-W01"], 25);
+      const signals = weeklySignals(["2025-W01"], 25);
 
       // Exercise
-      const result = toMeasurement(commits, sessions, excludedHashes);
+      const result = runMeasurement(commits, signals, excludedHashes);
 
       // Verify
       expect(result.currentScore).toBe(0);
@@ -130,16 +147,16 @@ describe("toMeasurement", () => {
         { additions: 800, deletions: 0 },
         { additions: 3000, deletions: 0 },
       ]);
-      const sessions = [
-        ...weeklySessions(
+      const signals = [
+        ...weeklySignals(
           Array.from({ length: 7 }, (_, i) => weekLabel(i)),
           25,
         ),
-        makeSession("2025-W08", "dev@example.com", 2), // only 2h = 80 LOC
+        makeSignal("2025-W08", "dev@example.com", 2), // only 2h = 80 LOC
       ];
 
       // Exercise
-      const result = toMeasurement(commits, sessions);
+      const result = runMeasurement(commits, signals);
 
       // Verify
       expect(result.currentScore).toBeGreaterThan(0);
@@ -153,7 +170,7 @@ describe("toMeasurement", () => {
       ]);
 
       // Exercise
-      const result = toMeasurement(commits, []);
+      const result = runMeasurement(commits, []);
 
       // Verify
       expect(result.currentScore).toBeGreaterThanOrEqual(0);
@@ -177,23 +194,23 @@ describe("toMeasurement", () => {
         ]),
       ];
 
-      const fewHoursSessions = weeklySessions(
+      const fewHoursSignals = weeklySignals(
         Array.from({ length: 7 }, (_, i) => weekLabel(i)),
         2,
       );
-      const manyHoursSessions = weeklySessions(
+      const manyHoursSignals = weeklySignals(
         Array.from({ length: 7 }, (_, i) => weekLabel(i)),
         40,
       );
 
       // Exercise
-      const scoreFewHours = toMeasurement(
+      const scoreFewHours = runMeasurement(
         commits,
-        fewHoursSessions,
+        fewHoursSignals,
       ).currentScore;
-      const scoreManyHours = toMeasurement(
+      const scoreManyHours = runMeasurement(
         commits,
-        manyHoursSessions,
+        manyHoursSignals,
       ).currentScore;
 
       // Verify
@@ -215,17 +232,65 @@ describe("toMeasurement", () => {
         ]),
       ];
 
-      const coreSession = [makeSession("2025-W07", "core@example.com", 20)];
-      const drivebySession = [
-        makeSession("2025-W07", "driveby@example.com", 20),
+      const coreSignals = [makeSignal("2025-W07", "core@example.com", 20)];
+      const drivebySignals = [
+        makeSignal("2025-W07", "driveby@example.com", 20),
       ];
 
       // Exercise
-      const scoreCore = toMeasurement(commits, coreSession).currentScore;
-      const scoreDriveby = toMeasurement(commits, drivebySession).currentScore;
+      const scoreCore = runMeasurement(commits, coreSignals).currentScore;
+      const scoreDriveby = runMeasurement(commits, drivebySignals).currentScore;
 
       // Verify — drive-by has 0 core factor, so their time doesn't count
       expect(scoreDriveby).toBeGreaterThan(scoreCore);
+    });
+  });
+
+  describe("weekly hour cap", () => {
+    it("limits how much a single author can contribute per week", () => {
+      // Setup SUT — two scenarios with the same total session time
+      // (split across multiple short sessions to stay in the same week).
+      // One author with many sessions vs two authors splitting them.
+      const history = coreHistory(["a@example.com", "b@example.com"], {
+        weeks: 30,
+        commitsPerWeek: 5,
+      });
+      const excludedHashes = new Set(history.map((c) => c.hash));
+      const commits = [
+        ...history,
+        makeCommit("2025-W01", "a@example.com", 10000),
+      ];
+
+      // 5 × 30h sessions for one author = 150h effective (after core
+      // factor), well above the cap
+      const oneAuthorSignals = Array.from({ length: 5 }, () =>
+        makeSignal("2025-W01", "a@example.com", 30),
+      );
+      // Split across two authors: each gets 2-3 × 30h sessions
+      const twoAuthorSignals = [
+        ...Array.from({ length: 3 }, () =>
+          makeSignal("2025-W01", "a@example.com", 30),
+        ),
+        ...Array.from({ length: 2 }, () =>
+          makeSignal("2025-W01", "b@example.com", 30),
+        ),
+      ];
+
+      // Exercise
+      const scoreOne = runMeasurement(
+        commits,
+        oneAuthorSignals,
+        excludedHashes,
+      ).currentScore;
+      const scoreTwo = runMeasurement(
+        commits,
+        twoAuthorSignals,
+        excludedHashes,
+      ).currentScore;
+
+      // Verify — two authors get more total effective hours because
+      // each author's cap is applied independently
+      expect(scoreTwo).toBeLessThan(scoreOne);
     });
   });
 
@@ -239,10 +304,10 @@ describe("toMeasurement", () => {
       const commits = Array.from({ length: 15 }, () =>
         makeCommit("2025-W01", coreAuthor, 1000 / 15),
       );
-      const sessions = [makeSession("2025-W01", coreAuthor, 5)];
+      const signals = [makeSignal("2025-W01", coreAuthor, 5)];
 
       // Exercise
-      const result = toMeasurement(commits, sessions);
+      const result = runMeasurement(commits, signals);
 
       // Verify — score is less than 1 because dampening reduces the
       // attention cost below the raw line count, letting session time
@@ -261,7 +326,7 @@ describe("toMeasurement", () => {
       const smallCommits = Array.from({ length: 15 }, () =>
         makeCommit(weekLabel(0), coreAuthor, 200),
       );
-      const smallSessions = [makeSession(weekLabel(0), coreAuthor, 20)];
+      const smallSignals = [makeSignal(weekLabel(0), coreAuthor, 20)];
 
       const rampUpCommits = Array.from({ length: 15 }, (_, weekIndex) =>
         makeCommit(weekLabel(weekIndex), coreAuthor, 800),
@@ -270,21 +335,21 @@ describe("toMeasurement", () => {
         ...rampUpCommits,
         makeCommit(weekLabel(15), coreAuthor, 3000),
       ];
-      const largeSessions = [
+      const largeSignals = [
         ...rampUpCommits.map((_, weekIndex) =>
-          makeSession(weekLabel(weekIndex), coreAuthor, 1),
+          makeSignal(weekLabel(weekIndex), coreAuthor, 1),
         ),
-        makeSession(weekLabel(15), coreAuthor, 20),
+        makeSignal(weekLabel(15), coreAuthor, 20),
       ];
 
       // Exercise
-      const scoreSmall = toMeasurement(
+      const scoreSmall = runMeasurement(
         smallCommits,
-        smallSessions,
+        smallSignals,
       ).currentScore;
-      const scoreLarge = toMeasurement(
+      const scoreLarge = runMeasurement(
         largeCommits,
-        largeSessions,
+        largeSignals,
       ).currentScore;
 
       // Verify — small codebase has lower dampening, so the same additions
@@ -302,7 +367,7 @@ describe("toMeasurement", () => {
       ];
 
       // Exercise
-      const result = toMeasurement(commits, []);
+      const result = runMeasurement(commits, []);
 
       // Verify
       expect(result.history).toHaveLength(4);
@@ -327,7 +392,7 @@ describe("toMeasurement", () => {
       ];
 
       // Exercise
-      const result = toMeasurement(commits, []);
+      const result = runMeasurement(commits, []);
 
       // Verify
       const scoreW07 = result.history.find((h) => h.week === "2025-W07")!.score;
@@ -341,7 +406,7 @@ describe("toMeasurement", () => {
   describe("edge cases", () => {
     it("handles empty commit list", () => {
       // Exercise
-      const result = toMeasurement([], []);
+      const result = runMeasurement([], []);
 
       // Verify
       expect(result.currentScore).toBe(0);
@@ -359,7 +424,7 @@ describe("toMeasurement", () => {
       ];
 
       // Exercise
-      const result = toMeasurement(commits, []);
+      const result = runMeasurement(commits, []);
 
       // Verify
       expect(Number.isFinite(result.currentScore)).toBe(true);
@@ -371,10 +436,10 @@ describe("toMeasurement", () => {
         { additions: 100, deletions: 0 },
         { additions: 100, deletions: 0 },
       ]);
-      const sessions = weeklySessions(["2025-W01", "2025-W02"], 100);
+      const signals = weeklySignals(["2025-W01", "2025-W02"], 100);
 
       // Exercise
-      const result = toMeasurement(commits, sessions);
+      const result = runMeasurement(commits, signals);
 
       // Verify
       for (const entry of result.history) {
@@ -389,7 +454,7 @@ describe("toMeasurement", () => {
       );
 
       // Exercise
-      const result = toMeasurement(commits, []);
+      const result = runMeasurement(commits, []);
 
       // Verify
       for (const entry of result.history) {
@@ -404,10 +469,102 @@ describe("toMeasurement", () => {
       );
 
       // Exercise
-      const result = toMeasurement(commits, []);
+      const result = runMeasurement(commits, []);
 
       // Verify
       expect(result.history).toHaveLength(20);
+    });
+  });
+
+  describe("weeklyDiagnostics", () => {
+    it("returns one diagnostics entry per history entry", () => {
+      // Setup SUT
+      const commits = weeklyCommits([
+        { additions: 1000, deletions: 0 },
+        { additions: 2000, deletions: 0 },
+        { additions: 500, deletions: 200 },
+      ]);
+
+      // Exercise
+      const result = runMeasurement(commits, []);
+
+      // Verify
+      expect(result.diagnostics.weeklyDiagnostics).toHaveLength(
+        result.history.length,
+      );
+      for (let i = 0; i < result.history.length; i++) {
+        expect(result.diagnostics.weeklyDiagnostics[i]!.week).toBe(
+          result.history[i]!.week,
+        );
+        expect(result.diagnostics.weeklyDiagnostics[i]!.score).toBe(
+          result.history[i]!.score,
+        );
+      }
+    });
+
+    it("populates all intermediate values", () => {
+      // Setup SUT
+      const history = coreHistory(["dev@example.com"]);
+      const excludedHashes = new Set(history.map((c) => c.hash));
+      const commits = [
+        ...history,
+        ...weeklyCommits([{ additions: 3000, deletions: 500 }]),
+      ];
+      const signals = [makeSignal("2025-W01", "dev@example.com", 20)];
+
+      // Exercise
+      const result = runMeasurement(commits, signals, excludedHashes);
+      const lastWeek =
+        result.diagnostics.weeklyDiagnostics[
+          result.diagnostics.weeklyDiagnostics.length - 1
+        ]!;
+
+      // Verify — all fields are populated with sensible values
+      expect(lastWeek.weightedAdditions).toBe(3000);
+      expect(lastWeek.weightedDeletions).toBe(500);
+      expect(lastWeek.netAdditions).toBe(2500);
+      expect(lastWeek.sizeDampening).toBeGreaterThan(0);
+      expect(lastWeek.attentionCost).toBeGreaterThan(0);
+      expect(lastWeek.totalEffectiveHours).toBeGreaterThan(0);
+      expect(lastWeek.attentionSpent).toBeGreaterThan(0);
+      expect(lastWeek.cumulativeRawLines).toBeGreaterThan(0);
+      expect(lastWeek.cumulativeDampenedLines).toBeGreaterThan(0);
+    });
+
+    it("includes per-contributor breakdown", () => {
+      // Setup SUT
+      const history = coreHistory(["dev@example.com"]);
+      const excludedHashes = new Set(history.map((c) => c.hash));
+      const commits = [
+        ...history,
+        ...weeklyCommits([{ additions: 3000, deletions: 0 }]),
+      ];
+      const signals = [makeSignal("2025-W01", "dev@example.com", 20)];
+
+      // Exercise
+      const result = runMeasurement(commits, signals, excludedHashes);
+      const lastWeek =
+        result.diagnostics.weeklyDiagnostics[
+          result.diagnostics.weeklyDiagnostics.length - 1
+        ]!;
+
+      // Verify
+      expect(lastWeek.contributors.length).toBeGreaterThan(0);
+      const devContrib = lastWeek.contributors.find(
+        (c) => c.author === "dev@example.com",
+      )!;
+      expect(devContrib).toBeDefined();
+      expect(devContrib.rawSessionHours).toBeGreaterThan(0);
+      expect(devContrib.coreFactor).toBeGreaterThan(0);
+      expect(devContrib.cappedHours).toBeGreaterThan(0);
+    });
+
+    it("returns empty diagnostics for empty commits", () => {
+      // Exercise
+      const result = runMeasurement([], []);
+
+      // Verify
+      expect(result.diagnostics.weeklyDiagnostics).toEqual([]);
     });
   });
 });

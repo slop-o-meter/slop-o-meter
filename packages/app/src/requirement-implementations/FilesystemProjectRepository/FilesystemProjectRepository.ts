@@ -63,7 +63,8 @@ export default class FilesystemProjectRepository implements ProjectRepository {
     repo: string,
     measurementJson: string,
     lastMeasuredAt: string,
-    analysisJson?: string,
+    measurementDataJson?: string,
+    measurementDiagnosticsJson?: string,
   ): Promise<void> {
     const project =
       this.readProject(owner, repo) ?? this.defaultProject(owner, repo);
@@ -76,8 +77,11 @@ export default class FilesystemProjectRepository implements ProjectRepository {
     project.lastMeasuredAt = lastMeasuredAt;
     this.writeProject(project);
 
-    if (analysisJson) {
-      this.writeAnalysis(owner, repo, analysisJson);
+    if (measurementDataJson) {
+      this.writeMeasurementData(owner, repo, measurementDataJson);
+    }
+    if (measurementDiagnosticsJson) {
+      this.writeMeasurementDiagnostics(owner, repo, measurementDiagnosticsJson);
     }
   }
 
@@ -89,6 +93,20 @@ export default class FilesystemProjectRepository implements ProjectRepository {
     project.measurementPhaseProgress = null;
     project.errorReason = reason ?? null;
     this.writeProject(project);
+  }
+
+  async getMeasurementData(
+    owner: string,
+    repo: string,
+  ): Promise<string | null> {
+    const filePath = join(
+      this.dataDirectory,
+      `projects/${owner}/${repo}.measurement-data.json`,
+    );
+    if (!existsSync(filePath)) {
+      return null;
+    }
+    return readFileSync(filePath, "utf-8");
   }
 
   private storageKey(owner: string, repo: string): string {
@@ -126,16 +144,29 @@ export default class FilesystemProjectRepository implements ProjectRepository {
     writeFileSync(filePath, JSON.stringify(project), "utf-8");
   }
 
-  private writeAnalysis(
+  private writeMeasurementData(
     owner: string,
     repo: string,
-    analysisJson: string,
+    measurementDataJson: string,
   ): void {
     const filePath = join(
       this.dataDirectory,
-      `projects/${owner}/${repo}.analysis.json`,
+      `projects/${owner}/${repo}.measurement-data.json`,
     );
     mkdirSync(dirname(filePath), { recursive: true });
-    writeFileSync(filePath, analysisJson, "utf-8");
+    writeFileSync(filePath, measurementDataJson, "utf-8");
+  }
+
+  private writeMeasurementDiagnostics(
+    owner: string,
+    repo: string,
+    measurementDiagnosticsJson: string,
+  ): void {
+    const filePath = join(
+      this.dataDirectory,
+      `projects/${owner}/${repo}.measurement-diagnostics.json`,
+    );
+    mkdirSync(dirname(filePath), { recursive: true });
+    writeFileSync(filePath, measurementDiagnosticsJson, "utf-8");
   }
 }

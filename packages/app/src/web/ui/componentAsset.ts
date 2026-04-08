@@ -5,10 +5,12 @@ interface ManifestEntry {
 }
 
 const CLIENT_PATHS: Record<string, string> = {
-  "HomePage.client.js": "src/web/ui/pages/HomePage/HomePage.client.js",
-  "ProjectPage.client.js": "src/web/ui/pages/ProjectPage/ProjectPage.client.js",
-  "HistoryCharts.client.js":
-    "src/web/ui/components/HistoryCharts/HistoryCharts.client.js",
+  "HomePage.client.ts": "src/web/ui/pages/HomePage/HomePage.client.ts",
+  "ProjectPage.client.ts": "src/web/ui/pages/ProjectPage/ProjectPage.client.ts",
+  "HistoryCharts.client.ts":
+    "src/web/ui/components/HistoryCharts/HistoryCharts.client.ts",
+  "TunableParams.client.ts":
+    "src/web/ui/components/TunableParams/TunableParams.client.ts",
 };
 
 let manifest: Record<string, ManifestEntry> | null = null;

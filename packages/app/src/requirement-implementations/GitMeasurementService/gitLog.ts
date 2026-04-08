@@ -139,6 +139,8 @@ function countSubCommits(bodyLines: string[]): number {
 
 // --- File Weighting ---
 
+const NON_PRODUCTION_WEIGHT = 0.5;
+
 const FILE_WEIGHTS: Record<string, number> = {
   ts: 1.0,
   js: 1.0,
@@ -199,7 +201,7 @@ function getFileWeight(filePath: string, toolIgnore?: Ignore): number {
     return 0;
   }
   if (isNonProductionFile(filePath)) {
-    return 0;
+    return baseWeight * NON_PRODUCTION_WEIGHT;
   }
   if (isVendoredFile(filePath)) {
     return 0;

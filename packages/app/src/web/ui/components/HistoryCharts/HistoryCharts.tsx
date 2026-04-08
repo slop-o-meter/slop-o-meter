@@ -258,7 +258,7 @@ export default function HistoryCharts({ history }: Props) {
 
   return (
     <div class={historyChartsClass} data-history-charts>
-      <script src={componentAsset("HistoryCharts.client.js")} defer />
+      <script src={componentAsset("HistoryCharts.client.ts")} defer />
       <div class={chartTooltipClass} data-chart-tooltip="score">
         <img
           class={chartTooltipImageClass}
@@ -382,6 +382,9 @@ export default function HistoryCharts({ history }: Props) {
                               : changeChartBarNegativeClass
                           }
                           style={`height: ${String(height)}%; ${isPositive ? `bottom: 50%` : `top: 50%`}`}
+                          {...(isPositive
+                            ? { "data-bar-positive": "" }
+                            : { "data-bar-negative": "" })}
                         />
                       </div>
                     );

@@ -264,7 +264,7 @@ describe("parseCommits", () => {
       expect(commits[0]!.additions).toBeCloseTo(50); // 100 * 0.5
     });
 
-    it("gives zero weight to test files", () => {
+    it("gives half weight to test files", () => {
       // Setup SUT
       const output = makeGitOutput([
         commitBlock("2025-01-06T10:00:00+00:00", "alice@example.com", [
@@ -276,10 +276,10 @@ describe("parseCommits", () => {
       const commits = parseCommits(output);
 
       // Verify
-      expect(commits[0]!.additions).toBe(0);
+      expect(commits[0]!.additions).toBeCloseTo(50); // 100 * 1.0 * 0.5
     });
 
-    it("gives zero weight to test files in test directories", () => {
+    it("gives half weight to test files in test directories", () => {
       // Setup SUT
       const output = makeGitOutput([
         commitBlock("2025-01-06T10:00:00+00:00", "alice@example.com", [
@@ -291,10 +291,10 @@ describe("parseCommits", () => {
       const commits = parseCommits(output);
 
       // Verify
-      expect(commits[0]!.additions).toBe(0);
+      expect(commits[0]!.additions).toBeCloseTo(50); // 100 * 1.0 * 0.5
     });
 
-    it("gives zero weight to Go test files", () => {
+    it("gives half weight to Go test files", () => {
       // Setup SUT
       const output = makeGitOutput([
         commitBlock("2025-01-06T10:00:00+00:00", "alice@example.com", [
@@ -306,10 +306,10 @@ describe("parseCommits", () => {
       const commits = parseCommits(output);
 
       // Verify
-      expect(commits[0]!.additions).toBe(0);
+      expect(commits[0]!.additions).toBeCloseTo(50); // 100 * 1.0 * 0.5
     });
 
-    it("gives zero weight to Python test files with test_ prefix", () => {
+    it("gives half weight to Python test files with test_ prefix", () => {
       // Setup SUT
       const output = makeGitOutput([
         commitBlock("2025-01-06T10:00:00+00:00", "alice@example.com", [
@@ -321,7 +321,7 @@ describe("parseCommits", () => {
       const commits = parseCommits(output);
 
       // Verify
-      expect(commits[0]!.additions).toBe(0);
+      expect(commits[0]!.additions).toBeCloseTo(50); // 100 * 1.0 * 0.5
     });
 
     it("gives zero weight to files in vendor directories", () => {
@@ -428,7 +428,7 @@ describe("parseBaselineDiffOutput", () => {
     expect(result).toBe(100);
   });
 
-  it("ignores test files", () => {
+  it("gives half weight to test files", () => {
     // Setup SUT
     const output = [
       "100\t0\tsrc/main.ts",
@@ -440,7 +440,7 @@ describe("parseBaselineDiffOutput", () => {
     const result = parseBaselineDiffOutput(output);
 
     // Verify
-    expect(result).toBe(100);
+    expect(result).toBe(275); // 100 + (200 * 0.5) + (150 * 0.5)
   });
 
   it("returns 0 for empty output", () => {

@@ -9,9 +9,9 @@ export interface OutlierDetectionResult {
 }
 
 /**
- * Selects the top N commits by weighted additions for outlier analysis,
+ * Selects the top N commits by net weighted additions for outlier analysis,
  * where N = 2 * project age in years (rounded up, minimum 1).
- * Only commits with at least OUTLIER_MIN_ADDITIONS are considered.
+ * Only commits with at least OUTLIER_MIN_ADDITIONS net lines are considered.
  */
 export function detectOutlierCommits(
   commits: Commit[],
@@ -22,12 +22,16 @@ export function detectOutlierCommits(
 
   const maxOutliers = computeMaxOutliers(commits);
 
-  const indexed = commits.map((commit, index) => ({ commit, index }));
-  indexed.sort((a, b) => b.commit.additions - a.commit.additions);
+  const indexed = commits.map((commit, index) => ({
+    commit,
+    index,
+    netAdditions: Math.max(0, commit.additions - commit.deletions),
+  }));
+  indexed.sort((a, b) => b.netAdditions - a.netAdditions);
 
   const outlierIndices = new Set(
     indexed
-      .filter((entry) => entry.commit.additions >= OUTLIER_MIN_ADDITIONS)
+      .filter((entry) => entry.netAdditions >= OUTLIER_MIN_ADDITIONS)
       .slice(0, maxOutliers)
       .map((entry) => entry.index),
   );

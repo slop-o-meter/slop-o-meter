@@ -29,7 +29,9 @@ export interface ProjectRepository {
     repo: string,
     measurementJson: string,
     lastMeasuredAt: string,
-    analysisJson?: string,
+    measurementDataJson?: string,
+    measurementDiagnosticsJson?: string,
   ): Promise<void>;
   setError(owner: string, repo: string, reason?: string): Promise<void>;
+  getMeasurementData(owner: string, repo: string): Promise<string | null>;
 }

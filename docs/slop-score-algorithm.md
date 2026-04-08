@@ -78,7 +78,7 @@ drops, large migrations, vendored imports, monorepo restructuring, etc. These
 inflate the slop score because the session time around a single commit can't
 possibly cover thousands of lines.
 
-The top `4 * projectAgeInYears` outlier commits (by weighted additions) are
+The top `4 * projectAgeInYears` outlier commits (by net weighted additions) are
 flagged for AI analysis: we ask an LLM to judge whether or not they are slop,
 passing it (for each commit) context like the commit message, the file list, the
 codebase size and age at the time, etc.
@@ -139,11 +139,23 @@ The following signals are used to estimate human activity:
 
 - **Git commits**: the primary signal. Each commit generates a neighborhood of
   `BASE_NEIGHBORHOOD` hours before the commit timestamp.
+- **Co-authors**: detected via `Co-authored-by` trailers. Each co-author
+  generates a signal at the commit's timestamp with a reduced neighborhood:
+  first co-author gets `BASE_NEIGHBORHOOD × 0.5`, second gets `× 0.25`, third
+  and beyond get `× 0.125`. Co-authorship indicates contribution but not
+  necessarily active work at the commit's exact timestamp, so the smaller window
+  limits session inflation.
 - **Squash commits**: detected by embedded sub-commit lists in the commit body.
   The neighborhood size scales with the number of sub-commits (see Squash Merge
   Detection below).
 - **GitHub events**: PR comments, issue comments, and PR reviews. Each generates
-  a neighborhood of `BASE_NEIGHBORHOOD` hours.
+  a neighborhood of `BASE_NEIGHBORHOOD` hours. GitHub events use login names
+  (e.g. `octocat`) while git commits use emails (e.g. `octocat@example.com`). To
+  match them, logins are resolved to git emails via two strategies:
+  1. Extract logins from noreply-format emails (`{id}+{login}@...`) in the
+     commit history.
+  2. For remaining logins, query the GitHub commits API to find commits by that
+     author and extract the email.
 
 Bot-generated signals are excluded (see Bot Detection below).
 
@@ -195,8 +207,25 @@ lines of code:
 
 ```js
 effectiveTime = sessionDuration * coreFactor;
-attentionSpentThisWeek = totalEffectiveTime * LINES_PER_HOUR;
+cappedTime = capWeeklyHours(effectiveTime);
+attentionSpentThisWeek = totalCappedTime * LINES_PER_HOUR;
 ```
+
+#### Per-Author Weekly Hour Cap
+
+A single contributor's effective hours are capped per week to prevent inflated
+session time (e.g. from co-author signals or dense commit activity) from
+dominating the score. The marginal value of each hour follows a concave curve:
+the first hour counts fully, with diminishing returns as hours increase,
+reaching zero marginal value at `WEEKLY_HOURS_CAP` (80 hours).
+
+```
+marginalRate(h) = 1 - (h / WEEKLY_HOURS_CAP)²
+effectiveHours(H) = H - H³ / (3 × WEEKLY_HOURS_CAP²)
+```
+
+At 20 raw hours a contributor gets ~19.6 effective hours. At 40 hours: ~36.7. At
+80 hours (the cap): ~53.3. Hours above the cap contribute nothing.
 
 Attention spent is not capped at net additions. In weeks where contributors
 spend significant time refactoring, reviewing, or debugging without producing
@@ -239,16 +268,17 @@ beyond what humans could have reasonably produced or reviewed.
 
 ## Constants
 
-| Constant                       | Value | Purpose                                                 |
-| ------------------------------ | ----- | ------------------------------------------------------- |
-| `BOOTSTRAP_THRESHOLD`          | 5,000 | Cumulative lines at which bootstrap dampening reaches 1 |
-| `COMPLEXITY_WEIGHT`            | 0.05  | Scaling factor for the logarithmic complexity bonus     |
-| `BASE_NEIGHBORHOOD`            | 1     | Hours of work implied by a single signal                |
-| `MARGINAL_HOURS_PER_SUBCOMMIT` | 1     | Additional hours per sub-commit in a squash merge       |
-| `LINES_PER_HOUR`               | 40    | Weighted LOC one contributor can attend to per hour     |
-| `CORE_RAMP_START`              | 10    | Commits below which core factor is 0                    |
-| `CORE_RAMP_END`                | 60    | Commits at which core factor reaches 1.0                |
-| `OUTLIER_MIN_ADDITIONS`        | 2,000 | Minimum weighted additions to flag a commit as outlier  |
+| Constant                       | Value | Purpose                                                    |
+| ------------------------------ | ----- | ---------------------------------------------------------- |
+| `BOOTSTRAP_THRESHOLD`          | 5,000 | Cumulative lines at which bootstrap dampening reaches 1    |
+| `COMPLEXITY_WEIGHT`            | 0.05  | Scaling factor for the logarithmic complexity bonus        |
+| `BASE_NEIGHBORHOOD`            | 1     | Hours of work implied by a single signal                   |
+| `MARGINAL_HOURS_PER_SUBCOMMIT` | 1     | Additional hours per sub-commit in a squash merge          |
+| `LINES_PER_HOUR`               | 40    | Weighted LOC one contributor can attend to per hour        |
+| `CORE_RAMP_START`              | 10    | Commits below which core factor is 0                       |
+| `CORE_RAMP_END`                | 60    | Commits at which core factor reaches 1.0                   |
+| `WEEKLY_HOURS_CAP`             | 80    | Weekly hours per author at which marginal value reaches 0  |
+| `OUTLIER_MIN_ADDITIONS`        | 2,000 | Minimum net weighted additions to flag a commit as outlier |
 
 ## Score Interpretation
 

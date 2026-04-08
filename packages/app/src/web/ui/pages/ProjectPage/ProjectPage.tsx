@@ -3,10 +3,11 @@ import type { Project } from "../../../../types.js";
 import componentAsset from "../../componentAsset.js";
 import HistoryCharts from "../../components/HistoryCharts/HistoryCharts.js";
 import ProjectCard from "../../components/ProjectCard/ProjectCard.js";
+import ProjectPageMenu from "../../components/ProjectPageMenu/ProjectPageMenu.js";
+import TunableParams from "../../components/TunableParams/TunableParams.js";
 import { scoreToDisplay, scoreToLevel } from "../../utils/scoring.js";
 import {
   actionButtonClass,
-  backLinkClass,
   githubLinkClass,
   measurementViewCardSectionClass,
   measurementViewChartsSectionClass,
@@ -31,35 +32,18 @@ interface Props {
 }
 
 export default function ProjectPage({ owner, repo, project }: Props) {
+  const hasMeasurement = !!project?.measurement;
+
   return (
     <>
+      <ProjectPageMenu />
+
       <div
         class={projectPageClass}
         data-project-page
         data-owner={owner}
         data-repo={repo}
       >
-        {!project ||
-        ((project.measurementStatus === "Running" ||
-          project.measurementStatus === "Error") &&
-          !project.measurement) ? null : (
-          <a href="/" class={backLinkClass}>
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M19 12H5M12 19l-7-7 7-7" />
-            </svg>
-            Home
-          </a>
-        )}
         {!project ? (
           <NotMeasuredView />
         ) : project.measurementStatus === "Running" && !project.measurement ? (
@@ -71,7 +55,9 @@ export default function ProjectPage({ owner, repo, project }: Props) {
         ) : null}
       </div>
 
-      <script src={componentAsset("ProjectPage.client.js")} defer />
+      {hasMeasurement ? <TunableParams owner={owner} repo={repo} /> : null}
+
+      <script src={componentAsset("ProjectPage.client.ts")} defer />
     </>
   );
 }

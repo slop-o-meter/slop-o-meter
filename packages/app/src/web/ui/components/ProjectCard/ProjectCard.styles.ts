@@ -67,7 +67,7 @@ export const projectCardScoreClass = css`
 
 export const projectCardCommentClass = css`
   font-family: var(--mono);
-  font-size: 5cqi;
+  font-size: min(5cqi, calc(400cqi / var(--comment-len)));
   line-height: 1.5;
   color: var(--brown-mid);
   margin-top: 6.4cqi;

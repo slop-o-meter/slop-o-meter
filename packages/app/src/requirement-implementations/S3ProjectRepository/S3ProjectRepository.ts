@@ -68,7 +68,8 @@ export default class S3ProjectRepository implements ProjectRepository {
     repo: string,
     measurementJson: string,
     lastMeasuredAt: string,
-    analysisJson?: string,
+    measurementDataJson?: string,
+    measurementDiagnosticsJson?: string,
   ): Promise<void> {
     const project =
       (await this.readProject(owner, repo)) ?? this.defaultProject(owner, repo);
@@ -81,12 +82,22 @@ export default class S3ProjectRepository implements ProjectRepository {
     project.lastMeasuredAt = lastMeasuredAt;
     await this.writeProject(project);
 
-    if (analysisJson) {
+    if (measurementDataJson) {
       await this.s3Client.send(
         new PutObjectCommand({
           Bucket: this.bucketName,
-          Key: `projects/${owner}/${repo}.analysis.json`,
-          Body: analysisJson,
+          Key: `projects/${owner}/${repo}.measurement-data.json`,
+          Body: measurementDataJson,
+          ContentType: "application/json",
+        }),
+      );
+    }
+    if (measurementDiagnosticsJson) {
+      await this.s3Client.send(
+        new PutObjectCommand({
+          Bucket: this.bucketName,
+          Key: `projects/${owner}/${repo}.measurement-diagnostics.json`,
+          Body: measurementDiagnosticsJson,
           ContentType: "application/json",
         }),
       );
@@ -101,6 +112,23 @@ export default class S3ProjectRepository implements ProjectRepository {
     project.measurementPhaseProgress = null;
     project.errorReason = reason ?? null;
     await this.writeProject(project);
+  }
+
+  async getMeasurementData(
+    owner: string,
+    repo: string,
+  ): Promise<string | null> {
+    try {
+      const result = await this.s3Client.send(
+        new GetObjectCommand({
+          Bucket: this.bucketName,
+          Key: `projects/${owner}/${repo}.measurement-data.json`,
+        }),
+      );
+      return (await result.Body?.transformToString()) ?? null;
+    } catch {
+      return null;
+    }
   }
 
   private storageKey(owner: string, repo: string): string {
