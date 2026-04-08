@@ -53,7 +53,12 @@ export default function ProjectCard({
       >
         {score}
       </span>
-      <span class={projectCardCommentClass}>{comment}</span>
+      <span
+        class={projectCardCommentClass}
+        style={`--comment-len: ${String(comment.length)}`}
+      >
+        {comment}
+      </span>
     </div>
   );
 
