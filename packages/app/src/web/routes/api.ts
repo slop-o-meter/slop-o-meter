@@ -81,7 +81,7 @@ api.get("/project/:owner/:repo", async (context) => {
 api.get("/project/:owner/:repo/measurement-data", async (context) => {
   const owner = validateSegment(context.req.param("owner"));
   const repo = validateSegment(context.req.param("repo"));
-  const data = await context.var.projectRepository.getMeasurementData(
+  const data = await context.var.projectRepository.getPreAggregatedData(
     owner,
     repo,
   );

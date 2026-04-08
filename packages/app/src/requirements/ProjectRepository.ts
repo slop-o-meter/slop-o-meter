@@ -31,7 +31,9 @@ export interface ProjectRepository {
     lastMeasuredAt: string,
     measurementDataJson?: string,
     measurementDiagnosticsJson?: string,
+    preAggregatedDataJson?: string,
   ): Promise<void>;
   setError(owner: string, repo: string, reason?: string): Promise<void>;
   getMeasurementData(owner: string, repo: string): Promise<string | null>;
+  getPreAggregatedData(owner: string, repo: string): Promise<string | null>;
 }

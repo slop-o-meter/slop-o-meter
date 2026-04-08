@@ -70,6 +70,7 @@ export default class S3ProjectRepository implements ProjectRepository {
     lastMeasuredAt: string,
     measurementDataJson?: string,
     measurementDiagnosticsJson?: string,
+    preAggregatedDataJson?: string,
   ): Promise<void> {
     const project =
       (await this.readProject(owner, repo)) ?? this.defaultProject(owner, repo);
@@ -102,6 +103,16 @@ export default class S3ProjectRepository implements ProjectRepository {
         }),
       );
     }
+    if (preAggregatedDataJson) {
+      await this.s3Client.send(
+        new PutObjectCommand({
+          Bucket: this.bucketName,
+          Key: `projects/${owner}/${repo}.pre-aggregated.json`,
+          Body: preAggregatedDataJson,
+          ContentType: "application/json",
+        }),
+      );
+    }
   }
 
   async setError(owner: string, repo: string, reason?: string): Promise<void> {
@@ -123,6 +134,23 @@ export default class S3ProjectRepository implements ProjectRepository {
         new GetObjectCommand({
           Bucket: this.bucketName,
           Key: `projects/${owner}/${repo}.measurement-data.json`,
+        }),
+      );
+      return (await result.Body?.transformToString()) ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  async getPreAggregatedData(
+    owner: string,
+    repo: string,
+  ): Promise<string | null> {
+    try {
+      const result = await this.s3Client.send(
+        new GetObjectCommand({
+          Bucket: this.bucketName,
+          Key: `projects/${owner}/${repo}.pre-aggregated.json`,
         }),
       );
       return (await result.Body?.transformToString()) ?? null;
