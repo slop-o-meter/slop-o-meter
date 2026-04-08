@@ -1,3 +1,4 @@
+import { gzipSync } from "node:zlib";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { DateTime } from "luxon";
@@ -87,7 +88,15 @@ api.get("/project/:owner/:repo/measurement-data", async (context) => {
   if (!data) {
     return context.json({ found: false });
   }
+  const acceptsGzip = context.req.header("Accept-Encoding")?.includes("gzip");
   context.header("Cache-Control", "public, max-age=3600");
+  if (acceptsGzip) {
+    const compressed = gzipSync(data);
+    return context.body(compressed, 200, {
+      "Content-Type": "application/json",
+      "Content-Encoding": "gzip",
+    });
+  }
   return context.body(data, 200, { "Content-Type": "application/json" });
 });
 
