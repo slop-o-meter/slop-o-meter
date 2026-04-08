@@ -71,6 +71,10 @@ export const tunableParamsHeaderClass = css`
   display: flex;
   align-items: center;
   padding: 1.25rem 1.5rem 1rem;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--brown);
 `;
 
 export const tunableParamsBodyClass = css`
@@ -79,6 +83,10 @@ export const tunableParamsBodyClass = css`
   flex-direction: column;
   gap: 1.5rem;
   flex: 1;
+
+  &[hidden] {
+    display: none;
+  }
 `;
 
 export const tunableParamsGroupClass = css`
@@ -185,12 +193,31 @@ export const tunableParamsSelectClass = css`
   width: 100%;
 `;
 
+export const tunableParamsSpinnerLabelClass = css`
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--brown-light);
+`;
+
+export const tunableParamsSpinnerClass = css`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  flex: 1;
+
+  &[hidden] {
+    display: none;
+  }
+`;
+
 export const tunableParamsResetClass = css`
   font-family: var(--mono);
   font-size: 0.75rem;
-  color: var(--brown-light);
-  background: none;
-  border: 1px solid var(--brown-light);
+  color: var(--brown);
+  background: var(--cream);
+  border: 1px solid var(--brown);
   border-radius: 6px;
   padding: 0.4rem 0.8rem;
   cursor: pointer;
@@ -198,9 +225,15 @@ export const tunableParamsResetClass = css`
   letter-spacing: 0.04em;
   align-self: flex-start;
   margin-top: 0.5rem;
+  transition: background 0.15s;
 
   &:hover {
-    color: var(--brown);
-    border-color: var(--brown);
+    background: var(--sand);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+    pointer-events: none;
   }
 `;

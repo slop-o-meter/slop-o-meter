@@ -1,4 +1,5 @@
 import componentAsset from "../../componentAsset.js";
+import Spinner from "../Spinner/Spinner.js";
 import {
   tunableParamsBodyClass,
   tunableParamsGroupClass,
@@ -13,6 +14,8 @@ import {
   tunableParamsSelectClass,
   tunableParamsSliderClass,
   tunableParamsSliderRowClass,
+  tunableParamsSpinnerClass,
+  tunableParamsSpinnerLabelClass,
   tunableParamsToggleClass,
   tunableParamsToggleIconClass,
   tunableParamsValueClass,
@@ -32,7 +35,7 @@ export default function TunableParams({ owner, repo }: Props) {
         <button
           class={tunableParamsToggleClass}
           data-tunable-toggle
-          title="Tunable Parameters"
+          title="Tune Algorithm Params"
           aria-label="Toggle tunable parameters"
         >
           <svg
@@ -49,10 +52,17 @@ export default function TunableParams({ owner, repo }: Props) {
 
         <div class={tunableParamsScrollClass}>
           <div class={tunableParamsHeaderClass}>
-            <span data-tunable-title>Tunable Parameters</span>
+            <span data-tunable-title>Tune Algorithm Params</span>
           </div>
 
-          <div class={tunableParamsBodyClass}>
+          <div class={tunableParamsSpinnerClass} data-tunable-spinner>
+            <Spinner />
+            <span class={tunableParamsSpinnerLabelClass}>
+              Loading measurement data
+            </span>
+          </div>
+
+          <div class={tunableParamsBodyClass} data-tunable-body hidden>
             <SliderParam
               label="Human output (lines/hour)"
               tooltip="How many lines of code a human developer is expected to write per hour. Higher = more forgiving score."

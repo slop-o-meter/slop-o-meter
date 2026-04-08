@@ -35,8 +35,9 @@ const panel = document.querySelector<HTMLElement>("[data-tunable-panel]");
 const resetButton = document.querySelector<HTMLButtonElement>(
   "[data-tunable-reset]",
 );
-const titleElement = document.querySelector<HTMLElement>(
-  "[data-tunable-title]",
+const bodyElement = document.querySelector<HTMLElement>("[data-tunable-body]");
+const spinnerElement = document.querySelector<HTMLElement>(
+  "[data-tunable-spinner]",
 );
 
 // --- Info tooltips ---
@@ -114,37 +115,48 @@ if (toggle && panel) {
 
   // --- Load measurement data ---
 
+  const spinnerInitialHtml = spinnerElement?.innerHTML ?? "";
+
+  function showSpinner(message?: string) {
+    if (spinnerElement) {
+      spinnerElement.innerHTML = message ?? spinnerInitialHtml;
+      spinnerElement.hidden = false;
+    }
+    if (bodyElement) {
+      bodyElement.hidden = true;
+    }
+  }
+
+  function showBody() {
+    if (spinnerElement) {
+      spinnerElement.hidden = true;
+    }
+    if (bodyElement) {
+      bodyElement.hidden = false;
+    }
+  }
+
   async function loadMeasurementData() {
     loading = true;
-    if (titleElement) {
-      titleElement.textContent = "Loading\u2026";
-    }
+    showSpinner();
 
     try {
       const response = await fetch(
         `/api/project/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/measurement-data`,
       );
       if (!response.ok) {
-        if (titleElement) {
-          titleElement.textContent = "Failed to load";
-        }
+        showSpinner("Failed to load");
         return;
       }
       const json = await response.json();
       if (json.found === false || !json.commits) {
-        if (titleElement) {
-          titleElement.textContent = "No data available";
-        }
+        showSpinner("No data available");
         return;
       }
       measurementData = json as MeasurementData;
-      if (titleElement) {
-        titleElement.textContent = "Tunable Parameters";
-      }
+      showBody();
     } catch {
-      if (titleElement) {
-        titleElement.textContent = "Failed to load";
-      }
+      showSpinner("Failed to load");
       return;
     } finally {
       loading = false;
@@ -172,6 +184,36 @@ if (toggle && panel) {
 
     return options;
   }
+
+  // --- Reset button state ---
+
+  function isAtDefaults(): boolean {
+    for (const input of panel!.querySelectorAll<HTMLInputElement>(
+      "input[data-tunable-param]",
+    )) {
+      const param = input.getAttribute("data-tunable-param")!;
+      if (String(DEFAULTS[param]) !== input.value) {
+        return false;
+      }
+    }
+    for (const select of panel!.querySelectorAll<HTMLSelectElement>(
+      "select[data-tunable-param]",
+    )) {
+      const param = select.getAttribute("data-tunable-param")!;
+      if (String(DEFAULTS[param]) !== select.value) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function updateResetButton() {
+    if (resetButton) {
+      resetButton.disabled = isAtDefaults();
+    }
+  }
+
+  updateResetButton();
 
   // --- Replay and update ---
 
@@ -309,12 +351,14 @@ if (toggle && panel) {
       valueDisplay.textContent = (target as HTMLInputElement).value;
     }
     debouncedReplay();
+    updateResetButton();
   });
 
   panel.addEventListener("change", (event) => {
     const target = event.target as HTMLElement;
     if (target.getAttribute("data-tunable-param")) {
       replay();
+      updateResetButton();
     }
   });
 
@@ -346,5 +390,6 @@ if (toggle && panel) {
     }
 
     replay();
+    updateResetButton();
   });
 }
