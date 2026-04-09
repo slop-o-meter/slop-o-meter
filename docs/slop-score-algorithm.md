@@ -29,9 +29,11 @@ type before aggregation:
 - **SQL (0.8):** `.sql`
 - **UI code (0.5):** `.tsx`, `.vue`, `.html`, etc.
 - **Styling (0.3):** `.css`, `.scss`, etc.
-- **Test and example files (0.0):** `.test.ts`, `.spec.js`, `_test.go`, files in
-  `__tests__/`, `tests/`, `examples/`, `demos/`, `samples/`, etc. These don't
-  add to attention cost.
+- **Test and example files (`NON_PRODUCTION_WEIGHT` ×):** `.test.ts`,
+  `.spec.js`, `_test.go`, files in `__tests__/`, `tests/`, `examples/`,
+  `demos/`, `samples/`, etc. These are weighted at half their base type weight
+  (e.g. a `.test.ts` file scores 0.5 instead of 1.0). Tests still require human
+  attention to write and review, but less than production code.
 - **Non-code (0.0):** `.json`, `.yaml`, `.md`, `.svg`, etc. These are completely
   excluded from line counts.
 
@@ -280,6 +282,7 @@ beyond what humans could have reasonably produced or reviewed.
 | `COMPLEXITY_WEIGHT`             | 0.05             | Scaling factor for the logarithmic complexity bonus           |
 | `BASE_NEIGHBORHOOD`             | 1                | Hours of work implied by a single signal                      |
 | `MARGINAL_HOURS_PER_SUBCOMMIT`  | 1                | Additional hours per sub-commit in a squash merge             |
+| `NON_PRODUCTION_WEIGHT`         | 0.5              | Weight multiplier for test and example files                  |
 | `AI_CO_AUTHOR_ATTENTION_WEIGHT` | 0.8              | Neighborhood multiplier for AI co-author signals              |
 | `CO_AUTHOR_WEIGHTS`             | 0.5, 0.25, 0.125 | Neighborhood multiplier for 1st, 2nd, 3rd+ human co-authors   |
 | `LINES_PER_HOUR`                | 40               | Weighted LOC one contributor can attend to per hour           |
