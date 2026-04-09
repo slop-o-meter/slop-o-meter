@@ -38,8 +38,11 @@ async function invalidateProjectPage(
       InvalidationBatch: {
         CallerReference: `${owner}/${repo}/${Date.now()}`,
         Paths: {
-          Quantity: 1,
-          Items: [`/${owner}/${repo}`],
+          Quantity: 2,
+          Items: [
+            `/${owner}/${repo}`,
+            `/api/project/${owner}/${repo}/measurement-data`,
+          ],
         },
       },
     }),
