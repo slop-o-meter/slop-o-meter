@@ -29,9 +29,11 @@ type before aggregation:
 - **SQL (0.8):** `.sql`
 - **UI code (0.5):** `.tsx`, `.vue`, `.html`, etc.
 - **Styling (0.3):** `.css`, `.scss`, etc.
-- **Test and example files (0.0):** `.test.ts`, `.spec.js`, `_test.go`, files in
-  `__tests__/`, `tests/`, `examples/`, `demos/`, `samples/`, etc. These don't
-  add to attention cost.
+- **Test and example files (`NON_PRODUCTION_WEIGHT` ×):** `.test.ts`,
+  `.spec.js`, `_test.go`, files in `__tests__/`, `tests/`, `examples/`,
+  `demos/`, `samples/`, etc. These are weighted at half their base type weight
+  (e.g. a `.test.ts` file scores 0.5 instead of 1.0). Tests still require human
+  attention to write and review, but less than production code.
 - **Non-code (0.0):** `.json`, `.yaml`, `.md`, `.svg`, etc. These are completely
   excluded from line counts.
 
@@ -138,11 +140,15 @@ to.
 The following signals are used to estimate human activity:
 
 - **Git commits**: the primary signal. Each commit generates a neighborhood of
-  `BASE_NEIGHBORHOOD` hours before the commit timestamp.
-- **Co-authors**: detected via `Co-authored-by` trailers. Each co-author
+  `BASE_NEIGHBORHOOD` hours before the commit timestamp. If the commit has an AI
+  co-author (detected via bot patterns), the neighborhood is scaled down by
+  `AI_CO_AUTHOR_ATTENTION_WEIGHT` (0.8×), reflecting that AI-assisted commits
+  require less human attention.
+- **Co-authors**: detected via `Co-authored-by` trailers. Each human co-author
   generates a signal at the commit's timestamp with a reduced neighborhood:
-  first co-author gets `BASE_NEIGHBORHOOD × 0.5`, second gets `× 0.25`, third
-  and beyond get `× 0.125`. Co-authorship indicates contribution but not
+  first co-author gets `BASE_NEIGHBORHOOD × CO_AUTHOR_WEIGHTS[0]` (0.5×), second
+  gets `CO_AUTHOR_WEIGHTS[1]` (0.25×), third and beyond get
+  `CO_AUTHOR_WEIGHTS[2]` (0.125×). Co-authorship indicates contribution but not
   necessarily active work at the commit's exact timestamp, so the smaller window
   limits session inflation.
 - **Squash commits**: detected by embedded sub-commit lists in the commit body.
@@ -215,17 +221,19 @@ attentionSpentThisWeek = totalCappedTime * LINES_PER_HOUR;
 
 A single contributor's effective hours are capped per week to prevent inflated
 session time (e.g. from co-author signals or dense commit activity) from
-dominating the score. The marginal value of each hour follows a concave curve:
-the first hour counts fully, with diminishing returns as hours increase,
-reaching zero marginal value at `WEEKLY_HOURS_CAP` (80 hours).
+dominating the score. Hours above `WEEKLY_HOURS_CAP` are ignored entirely. Hours
+below the cap are discounted according to one of three selectable overtime
+curves:
 
-```
-marginalRate(h) = 1 - (h / WEEKLY_HOURS_CAP)²
-effectiveHours(H) = H - H³ / (3 × WEEKLY_HOURS_CAP²)
-```
-
-At 20 raw hours a contributor gets ~19.6 effective hours. At 40 hours: ~36.7. At
-80 hours (the cap): ~53.3. Hours above the cap contribute nothing.
+- **Concave** (default): gentle early decline, steep late. Marginal rate
+  `1 - (h / WEEKLY_HOURS_CAP)²`. Integral:
+  `effectiveHours(H) = H - H³ / (3 × WEEKLY_HOURS_CAP²)`. At 20 raw hours a
+  contributor gets ~19.6 effective hours. At 40 hours: ~36.7. At 80 hours (the
+  cap): ~53.3.
+- **Linear ramp**: hours up to `WEEKLY_HOURS_FULL` count at full value. Beyond
+  that, marginal value declines linearly to zero at `WEEKLY_HOURS_CAP`.
+- **Cosine**: S-shaped curve where marginal rate is
+  `(1 + cos(π × h / WEEKLY_HOURS_CAP)) / 2`.
 
 Attention spent is not capped at net additions. In weeks where contributors
 spend significant time refactoring, reviewing, or debugging without producing
@@ -268,17 +276,21 @@ beyond what humans could have reasonably produced or reviewed.
 
 ## Constants
 
-| Constant                       | Value | Purpose                                                    |
-| ------------------------------ | ----- | ---------------------------------------------------------- |
-| `BOOTSTRAP_THRESHOLD`          | 5,000 | Cumulative lines at which bootstrap dampening reaches 1    |
-| `COMPLEXITY_WEIGHT`            | 0.05  | Scaling factor for the logarithmic complexity bonus        |
-| `BASE_NEIGHBORHOOD`            | 1     | Hours of work implied by a single signal                   |
-| `MARGINAL_HOURS_PER_SUBCOMMIT` | 1     | Additional hours per sub-commit in a squash merge          |
-| `LINES_PER_HOUR`               | 40    | Weighted LOC one contributor can attend to per hour        |
-| `CORE_RAMP_START`              | 10    | Commits below which core factor is 0                       |
-| `CORE_RAMP_END`                | 60    | Commits at which core factor reaches 1.0                   |
-| `WEEKLY_HOURS_CAP`             | 80    | Weekly hours per author at which marginal value reaches 0  |
-| `OUTLIER_MIN_ADDITIONS`        | 2,000 | Minimum net weighted additions to flag a commit as outlier |
+| Constant                        | Value            | Purpose                                                       |
+| ------------------------------- | ---------------- | ------------------------------------------------------------- |
+| `BOOTSTRAP_THRESHOLD`           | 5,000            | Cumulative lines at which bootstrap dampening reaches 1       |
+| `COMPLEXITY_WEIGHT`             | 0.05             | Scaling factor for the logarithmic complexity bonus           |
+| `BASE_NEIGHBORHOOD`             | 1                | Hours of work implied by a single signal                      |
+| `MARGINAL_HOURS_PER_SUBCOMMIT`  | 1                | Additional hours per sub-commit in a squash merge             |
+| `NON_PRODUCTION_WEIGHT`         | 0.5              | Weight multiplier for test and example files                  |
+| `AI_CO_AUTHOR_ATTENTION_WEIGHT` | 0.8              | Neighborhood multiplier for AI co-author signals              |
+| `CO_AUTHOR_WEIGHTS`             | 0.5, 0.25, 0.125 | Neighborhood multiplier for 1st, 2nd, 3rd+ human co-authors   |
+| `LINES_PER_HOUR`                | 40               | Weighted LOC one contributor can attend to per hour           |
+| `CORE_RAMP_START`               | 10               | Commits below which core factor is 0                          |
+| `CORE_RAMP_END`                 | 60               | Commits at which core factor reaches 1.0                      |
+| `WEEKLY_HOURS_FULL`             | 40               | Weekly hours that count at full value (linear-ramp mode only) |
+| `WEEKLY_HOURS_CAP`              | 80               | Weekly hours per author at which marginal value reaches 0     |
+| `OUTLIER_MIN_ADDITIONS`         | 2,000            | Minimum net weighted additions to flag a commit as outlier    |
 
 ## Score Interpretation
 

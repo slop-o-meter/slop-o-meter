@@ -69,12 +69,31 @@ export const tunableParamsToggleIconClass = css`
 
 export const tunableParamsHeaderClass = css`
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  gap: 0.4rem;
   padding: 1.25rem 1.5rem 1rem;
   font-family: var(--display);
   font-weight: 700;
   font-size: 1.1rem;
   color: var(--brown);
+`;
+
+export const tunableParamsDescriptionClass = css`
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--brown-light);
+  line-height: 1.45;
+
+  & a {
+    color: var(--brown-mid);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+
+    &:hover {
+      color: var(--brown);
+    }
+  }
 `;
 
 export const tunableParamsBodyClass = css`
