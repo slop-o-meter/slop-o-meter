@@ -1,4 +1,4 @@
-import type { Signal } from "./signals.js";
+import type { GithubEvent } from "../../requirements/MeasurementService.js";
 import type Commit from "./types.js";
 
 const CLICKHOUSE_ENDPOINT = "https://play.clickhouse.com/";
@@ -20,18 +20,17 @@ interface ClickHouseResponse {
   data: ClickHouseRow[];
 }
 
-interface GithubEventOptions {
+interface FetchGithubEventsOptions {
   owner: string;
   repo: string;
-  neighborhoodHours: number;
   commits: Commit[];
   githubToken?: string;
 }
 
-export default async function fetchGithubEventSignals(
-  options: GithubEventOptions,
-): Promise<Signal[]> {
-  const { owner, repo, neighborhoodHours, commits, githubToken } = options;
+export default async function fetchGithubEvents(
+  options: FetchGithubEventsOptions,
+): Promise<GithubEvent[]> {
+  const { owner, repo, commits, githubToken } = options;
   const repoName = `${owner}/${repo}`;
   const eventTypesIn = RELEVANT_EVENT_TYPES.map((t) => `'${t}'`).join(", ");
 
@@ -75,7 +74,6 @@ export default async function fetchGithubEventSignals(
   return result.data.map((row) => ({
     timestamp: row.created_at,
     author: loginToEmail.get(row.actor_login.toLowerCase()) ?? row.actor_login,
-    neighborhoodHours,
   }));
 }
 

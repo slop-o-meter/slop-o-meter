@@ -10,6 +10,7 @@ import { join } from "node:path";
 import toMeasurement, {
   type WeeklyCapMode,
 } from "../requirement-implementations/GitMeasurementService/GitMeasurement.js";
+import preAggregate from "../requirement-implementations/GitMeasurementService/preAggregate.js";
 import type { MeasurementData } from "../requirements/MeasurementService.js";
 
 const linesPerHour = Number(process.argv[2]);
@@ -40,7 +41,8 @@ for (const owner of readdirSync(dataDir)) {
       readFileSync(join(ownerDir, file), "utf-8"),
     ) as MeasurementData;
 
-    const result = toMeasurement(data, {
+    const { preAggregatedData } = preAggregate(data);
+    const result = toMeasurement(preAggregatedData, {
       humanLinesPerHour: linesPerHour,
       overtimeCurve: weeklyCapMode,
     });

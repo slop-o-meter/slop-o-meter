@@ -89,7 +89,14 @@ export default class GitMeasurementService implements MeasurementService {
         // No README found
       }
 
-      return { ...result, readmeExcerpt };
+      return {
+        currentScore: result.currentScore,
+        history: result.history,
+        readmeExcerpt,
+        measurementData: result.measurementData,
+        preAggregatedData: result.preAggregatedData,
+        diagnostics: result.diagnostics,
+      };
     } finally {
       try {
         await rm(repoPath, { recursive: true, force: true });

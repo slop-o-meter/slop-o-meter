@@ -65,6 +65,7 @@ export default class FilesystemProjectRepository implements ProjectRepository {
     lastMeasuredAt: string,
     measurementDataJson?: string,
     measurementDiagnosticsJson?: string,
+    preAggregatedDataJson?: string,
   ): Promise<void> {
     const project =
       this.readProject(owner, repo) ?? this.defaultProject(owner, repo);
@@ -82,6 +83,9 @@ export default class FilesystemProjectRepository implements ProjectRepository {
     }
     if (measurementDiagnosticsJson) {
       this.writeMeasurementDiagnostics(owner, repo, measurementDiagnosticsJson);
+    }
+    if (preAggregatedDataJson) {
+      this.writePreAggregatedData(owner, repo, preAggregatedDataJson);
     }
   }
 
@@ -102,6 +106,20 @@ export default class FilesystemProjectRepository implements ProjectRepository {
     const filePath = join(
       this.dataDirectory,
       `projects/${owner}/${repo}.measurement-data.json`,
+    );
+    if (!existsSync(filePath)) {
+      return null;
+    }
+    return readFileSync(filePath, "utf-8");
+  }
+
+  async getPreAggregatedData(
+    owner: string,
+    repo: string,
+  ): Promise<string | null> {
+    const filePath = join(
+      this.dataDirectory,
+      `projects/${owner}/${repo}.pre-aggregated.json`,
     );
     if (!existsSync(filePath)) {
       return null;
@@ -168,5 +186,18 @@ export default class FilesystemProjectRepository implements ProjectRepository {
     );
     mkdirSync(dirname(filePath), { recursive: true });
     writeFileSync(filePath, measurementDiagnosticsJson, "utf-8");
+  }
+
+  private writePreAggregatedData(
+    owner: string,
+    repo: string,
+    preAggregatedDataJson: string,
+  ): void {
+    const filePath = join(
+      this.dataDirectory,
+      `projects/${owner}/${repo}.pre-aggregated.json`,
+    );
+    mkdirSync(dirname(filePath), { recursive: true });
+    writeFileSync(filePath, preAggregatedDataJson, "utf-8");
   }
 }

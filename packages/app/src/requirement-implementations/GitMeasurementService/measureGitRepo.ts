@@ -2,25 +2,22 @@ import { exec as execCb } from "node:child_process";
 import { promisify } from "node:util";
 import type {
   ExcludedHash,
+  GithubEvent,
   MeasurementData,
   MeasurementDiagnostics,
-  MeasurementSignal,
   OutlierClassificationEntry,
+  PreAggregatedData,
 } from "../../requirements/MeasurementService.js";
 import { isBotContributor } from "./aggregation.js";
-import fetchGithubEventSignals from "./githubEvents.js";
+import fetchGithubEvents from "./githubEvents.js";
 import { getCommand, parseCommits, shellEscape } from "./gitLog.js";
 import toMeasurement from "./GitMeasurement.js";
 import buildIgnore from "./ignorePatterns.js";
 import type { ClassifiedCommit } from "./outlierClassifier.js";
 import OutlierClassifier from "./outlierClassifier.js";
 import { detectOutlierCommits } from "./outlierCommits.js";
-import type { Signal } from "./signals.js";
+import preAggregate from "./preAggregate.js";
 import type Commit from "./types.js";
-
-const BASE_NEIGHBORHOOD = 1;
-const MARGINAL_HOURS_PER_SUBCOMMIT = 1;
-const AI_CO_AUTHOR_ATTENTION_WEIGHT = 0.8;
 
 export type ProgressPhase =
   | "cloning"
@@ -42,6 +39,7 @@ interface GitMeasurementResult {
   currentScore: number;
   history: { week: string; score: number }[];
   measurementData: MeasurementData;
+  preAggregatedData: PreAggregatedData;
   diagnostics: MeasurementDiagnostics;
 }
 
@@ -141,74 +139,45 @@ export default function createGitMeasurement(
         }
       }
 
-      // Build signals from all commits (excluded commits still generate sessions).
-      // Commits with AI co-authors get reduced attention credit.
-      const commitSignals: Signal[] = allCommits
-        .filter((commit) => !isBotContributor(commit.author))
-        .map((commit) => {
-          const hasAiCoAuthor = commit.coAuthors.some((coAuthor) =>
-            isBotContributor(coAuthor),
-          );
-          return {
-            timestamp: commit.timestamp,
-            author: commit.author,
-            neighborhoodHours:
-              computeCommitNeighborhood(commit.subCommitCount) *
-              (hasAiCoAuthor ? AI_CO_AUTHOR_ATTENTION_WEIGHT : 1),
-          };
-        });
-
-      // Build signals from co-authors. Each co-author gets a reduced
-      // neighborhood: 0.5×, 0.25×, then 0.125× for all subsequent.
-      // This reflects that co-authorship indicates contribution but not
-      // necessarily active work at the commit's exact timestamp.
-      const CO_AUTHOR_WEIGHTS = [0.5, 0.25, 0.125];
-      const coAuthorSignals: Signal[] = allCommits.flatMap((commit) =>
-        (commit.coAuthors ?? [])
-          .filter((coAuthor) => !isBotContributor(coAuthor))
-          .map((coAuthor, index) => ({
-            timestamp: commit.timestamp,
-            author: coAuthor,
-            neighborhoodHours:
-              BASE_NEIGHBORHOOD *
-              (CO_AUTHOR_WEIGHTS[index] ??
-                CO_AUTHOR_WEIGHTS[CO_AUTHOR_WEIGHTS.length - 1]!),
-          })),
-      );
-
-      // Fetch GitHub event signals
-      let githubSignals: Signal[] = [];
+      // Fetch GitHub events (raw data, no signal computation)
+      let githubEvents: GithubEvent[] = [];
       try {
-        githubSignals = await fetchGithubEventSignals({
+        githubEvents = await fetchGithubEvents({
           owner,
           repo,
-          neighborhoodHours: BASE_NEIGHBORHOOD,
           commits: allCommits,
           githubToken: options?.githubToken,
         });
+        githubEvents = githubEvents.filter(
+          (event) => !isBotContributor(event.author),
+        );
       } catch {
         // GitHub events are optional; continue without them
       }
 
-      const allSignals = [
-        ...commitSignals,
-        ...coAuthorSignals,
-        ...githubSignals.filter((signal) => !isBotContributor(signal.author)),
-      ];
-
       await onProgress?.("scoring");
       const measurementData = buildMeasurementData(
         allCommits,
-        allSignals,
+        githubEvents,
         excludedHashMap,
         outlierClassifications,
       );
 
-      const measurement = toMeasurement(measurementData);
+      // Phase 2a: pre-aggregate raw data into compact form
+      const { preAggregatedData, sessions } = preAggregate(measurementData);
+
+      // Phase 2b: compute scores from pre-aggregated data
+      const measurement = toMeasurement(preAggregatedData);
 
       return {
-        ...measurement,
+        currentScore: measurement.currentScore,
+        history: measurement.history,
         measurementData,
+        preAggregatedData,
+        diagnostics: {
+          sessions,
+          weeklyDiagnostics: measurement.weeklyDiagnostics,
+        },
       };
     },
   };
@@ -216,7 +185,7 @@ export default function createGitMeasurement(
 
 function buildMeasurementData(
   allCommits: Commit[],
-  allSignals: Signal[],
+  githubEvents: GithubEvent[],
   excludedHashMap: Map<string, ExcludedHash["reason"]>,
   outlierClassifications: ClassifiedCommit[],
 ): MeasurementData {
@@ -233,12 +202,6 @@ function buildMeasurementData(
     subCommitCount: commit.subCommitCount,
   }));
 
-  const signals: MeasurementSignal[] = allSignals.map((signal) => ({
-    timestamp: signal.timestamp,
-    author: signal.author,
-    neighborhoodHours: signal.neighborhoodHours,
-  }));
-
   const excludedHashes: ExcludedHash[] = [...excludedHashMap.entries()].map(
     ([hash, reason]) => ({ hash, reason }),
   );
@@ -252,17 +215,10 @@ function buildMeasurementData(
 
   return {
     commits,
-    signals,
+    githubEvents,
     excludedHashes,
     outlierClassifications: classifications,
   };
-}
-
-function computeCommitNeighborhood(subCommitCount: number): number {
-  if (subCommitCount >= 2) {
-    return BASE_NEIGHBORHOOD + subCommitCount * MARGINAL_HOURS_PER_SUBCOMMIT;
-  }
-  return BASE_NEIGHBORHOOD;
 }
 
 const execPromise = promisify(execCb);

@@ -169,6 +169,14 @@ export default class SlopOMeterStack extends cdk.Stack {
         allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
       },
       additionalBehaviors: {
+        "/api/project/*/*/measurement-data": {
+          origin: httpOrigin,
+          viewerProtocolPolicy:
+            cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          cachePolicy: pageCachePolicy,
+          originRequestPolicy:
+            cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
+        },
         "/api/*": {
           origin: httpOrigin,
           viewerProtocolPolicy:

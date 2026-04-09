@@ -1,17 +1,10 @@
-import { DateTime } from "luxon";
 import type {
   ContributorWeekDiagnostics,
-  MeasurementData,
-  MeasurementDiagnostics,
-  MeasurementSession,
+  PreAggregatedData,
   WeeklyDiagnostics,
+  WeeklySessionHoursEntry,
 } from "../../requirements/MeasurementService.js";
-import aggregateCommits, {
-  type ContributorProfile,
-  type WeeklyData,
-} from "./aggregation.js";
-import { computeSessions, type Session } from "./sessions.js";
-import type { Signal } from "./signals.js";
+import type { ContributorProfile } from "./aggregation.js";
 
 // --- Constants ---
 
@@ -55,25 +48,20 @@ export interface MeasurementOptions {
 export interface MeasurementOutput {
   currentScore: number;
   history: { week: string; score: number }[];
-  diagnostics: MeasurementDiagnostics;
+  weeklyDiagnostics: WeeklyDiagnostics[];
 }
 
 export default function toMeasurement(
-  data: Pick<MeasurementData, "commits" | "signals" | "excludedHashes">,
+  data: PreAggregatedData,
   options?: MeasurementOptions,
 ): MeasurementOutput {
-  const excludedHashSet = new Set(data.excludedHashes.map((eh) => eh.hash));
-  const { weeklyData, contributorProfiles } = aggregateCommits(
-    data.commits,
-    excludedHashSet,
-  );
-  const completeWeeklyData = fillWeekGaps(weeklyData);
+  const weeklyCommitData = data.weeklyCommitData;
 
-  if (completeWeeklyData.length === 0) {
+  if (weeklyCommitData.length === 0) {
     return {
       currentScore: 0,
       history: [],
-      diagnostics: { sessions: [], weeklyDiagnostics: [] },
+      weeklyDiagnostics: [],
     };
   }
 
@@ -87,28 +75,28 @@ export default function toMeasurement(
   const weeklyHoursFull = options?.fullCreditHoursPerWeek ?? WEEKLY_HOURS_FULL;
   const weeklyHoursCap = options?.maxHoursPerWeek ?? WEEKLY_HOURS_CAP;
 
-  // Derive sessions from signals
-  const signalObjects: Signal[] = data.signals.map((signal) => ({
-    timestamp: signal.timestamp,
-    author: signal.author,
-    neighborhoodHours: signal.neighborhoodHours,
-  }));
-  const sessions = computeSessions(signalObjects);
-  const serializedSessions: MeasurementSession[] = sessions.map((session) => ({
-    author: session.author,
-    startTime: session.startTime.toISO()!,
-    endTime: session.endTime.toISO()!,
-    durationHours: session.durationHours,
-  }));
+  // Build contributor profiles map from pre-aggregated entries
+  const contributorProfiles = new Map<string, ContributorProfile>();
+  for (const entry of data.contributorProfiles) {
+    contributorProfiles.set(entry.author, {
+      totalCommits: entry.totalCommits,
+      commitShare: entry.commitShare,
+    });
+  }
 
   // Pre-compute session hours per week, weighted by contributor core factor
   const { weekTotals: weeklyEffectiveHours, authorWeekDetail } =
-    computeWeeklyEffectiveHours(sessions, contributorProfiles, weeklyCapMode, {
-      coreRampStart,
-      coreRampEnd,
-      weeklyHoursFull,
-      weeklyHoursCap,
-    });
+    computeWeeklyEffectiveHours(
+      data.weeklySessionHours,
+      contributorProfiles,
+      weeklyCapMode,
+      {
+        coreRampStart,
+        coreRampEnd,
+        weeklyHoursFull,
+        weeklyHoursCap,
+      },
+    );
 
   let cumulativeSlop = 0;
   let cumulativeRawLines = 0;
@@ -116,7 +104,7 @@ export default function toMeasurement(
 
   const weeklyDiagnostics: WeeklyDiagnostics[] = [];
 
-  const history = completeWeeklyData.map((weekData) => {
+  const history = weeklyCommitData.map((weekData) => {
     // Total additions/deletions include both normal and excluded commits.
     // Excluded commits contribute to codebase size but not to excess.
     const totalAdditions =
@@ -202,10 +190,7 @@ export default function toMeasurement(
   return {
     currentScore,
     history,
-    diagnostics: {
-      sessions: serializedSessions,
-      weeklyDiagnostics,
-    },
+    weeklyDiagnostics,
   };
 }
 
@@ -246,7 +231,7 @@ function computeSizeDampening(
   return bootstrap + complexityBonus;
 }
 
-// --- Effective Hours (Session Time × Core Factor) ---
+// --- Effective Hours (Session Time x Core Factor) ---
 
 interface EffectiveHoursParams {
   coreRampStart: number;
@@ -256,38 +241,32 @@ interface EffectiveHoursParams {
 }
 
 function computeWeeklyEffectiveHours(
-  sessions: Session[],
+  weeklySessionHours: WeeklySessionHoursEntry[],
   contributorProfiles: Map<string, ContributorProfile>,
   weeklyCapMode: WeeklyCapMode,
   params: EffectiveHoursParams,
 ): WeeklyEffectiveHoursResult {
-  // Accumulate raw session hours and effective hours per author per week
-  const authorWeekRaw = new Map<string, Map<string, number>>();
-  const authorCoreFactors = new Map<string, number>();
-
-  for (const session of sessions) {
-    const week = `${String(session.startTime.weekYear)}-W${String(session.startTime.weekNumber).padStart(2, "0")}`;
-    const coreFactor = computeCoreFactor(
-      contributorProfiles.get(session.author),
-      params.coreRampStart,
-      params.coreRampEnd,
-    );
-    authorCoreFactors.set(session.author, coreFactor);
-
-    let weekMap = authorWeekRaw.get(session.author);
-    if (!weekMap) {
-      weekMap = new Map();
-      authorWeekRaw.set(session.author, weekMap);
-    }
-    weekMap.set(week, (weekMap.get(week) ?? 0) + session.durationHours);
-  }
-
-  // Apply per-author weekly cap and build detail maps
   const weekTotals = new Map<string, number>();
   const authorWeekDetail = new Map<string, Map<string, AuthorWeekDetail>>();
 
+  // Group by author
+  const authorWeekRaw = new Map<string, Map<string, number>>();
+  for (const entry of weeklySessionHours) {
+    let weekMap = authorWeekRaw.get(entry.author);
+    if (!weekMap) {
+      weekMap = new Map();
+      authorWeekRaw.set(entry.author, weekMap);
+    }
+    weekMap.set(entry.week, (weekMap.get(entry.week) ?? 0) + entry.hours);
+  }
+
+  // Apply per-author weekly cap and build detail maps
   for (const [author, weekMap] of authorWeekRaw) {
-    const coreFactor = authorCoreFactors.get(author) ?? 0;
+    const coreFactor = computeCoreFactor(
+      contributorProfiles.get(author),
+      params.coreRampStart,
+      params.coreRampEnd,
+    );
     const detailMap = new Map<string, AuthorWeekDetail>();
     authorWeekDetail.set(author, detailMap);
 
@@ -321,9 +300,9 @@ function computeWeeklyEffectiveHours(
  *
  * "linear-ramp": flat at 1.0 until WEEKLY_HOURS_FULL, then linear
  *   decline to 0 at WEEKLY_HOURS_CAP. (Original behavior.)
- * "cosine": S-curve from hour 0, marginal = (1 + cos(πh/cap)) / 2.
+ * "cosine": S-curve from hour 0, marginal = (1 + cos(piH/cap)) / 2.
  *   Integral at cap = cap/2.
- * "concave": gentle early decline, steep late, marginal = 1 - (h/cap)².
+ * "concave": gentle early decline, steep late, marginal = 1 - (h/cap)^2.
  *   Integral at cap = 2*cap/3.
  */
 function capWeeklyHours(
@@ -379,46 +358,4 @@ function computeCoreFactor(
   const veteranMultiplier = 1 + 0.25 * profile.commitShare;
 
   return ramp * veteranMultiplier;
-}
-
-// --- Week Gap Filling ---
-
-const EMPTY_WEEK: Omit<WeeklyData, "week"> = {
-  weightedAdditions: 0,
-  weightedDeletions: 0,
-  excludedAdditions: 0,
-  excludedDeletions: 0,
-  activeContributors: [],
-};
-
-function fillWeekGaps(weeklyData: WeeklyData[]): WeeklyData[] {
-  if (weeklyData.length <= 1) {
-    return weeklyData;
-  }
-
-  const firstWeek = weeklyData[0]!.week;
-  const lastWeek = weeklyData[weeklyData.length - 1]!.week;
-  const allWeeks = generateIsoWeekRange(firstWeek, lastWeek);
-
-  const dataByWeek = new Map<string, WeeklyData>();
-  for (const week of weeklyData) {
-    dataByWeek.set(week.week, week);
-  }
-
-  return allWeeks.map(
-    (week) => dataByWeek.get(week) ?? { ...EMPTY_WEEK, week },
-  );
-}
-
-function generateIsoWeekRange(startWeek: string, endWeek: string): string[] {
-  const weeks: string[] = [];
-  let current = DateTime.fromISO(startWeek);
-  const end = DateTime.fromISO(endWeek);
-  while (current <= end) {
-    weeks.push(
-      `${String(current.weekYear)}-W${String(current.weekNumber).padStart(2, "0")}`,
-    );
-    current = current.plus({ weeks: 1 });
-  }
-  return weeks;
 }

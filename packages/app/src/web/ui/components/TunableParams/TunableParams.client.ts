@@ -1,6 +1,6 @@
 import toMeasurement from "../../../../requirement-implementations/GitMeasurementService/GitMeasurement.js";
 import type { MeasurementOptions } from "../../../../requirement-implementations/GitMeasurementService/GitMeasurement.js";
-import type { MeasurementData } from "../../../../requirements/MeasurementService.js";
+import type { PreAggregatedData } from "../../../../requirements/MeasurementService.js";
 import scaleItems from "../../data/scaleItems.js";
 import { scoreToDisplay, scoreToLevel } from "../../utils/scoring.js";
 
@@ -76,7 +76,7 @@ document.addEventListener("mouseout", (event) => {
 if (toggle && panel) {
   // --- State ---
 
-  let measurementData: MeasurementData | null = null;
+  let measurementData: PreAggregatedData | null = null;
   let loading = false;
 
   const scriptTag = document.querySelector<HTMLScriptElement>(
@@ -95,7 +95,7 @@ if (toggle && panel) {
     document.body.style.marginRight = `${String(PANEL_WIDTH)}px`;
     document.body.style.transition = "margin-right 0.25s ease";
     if (!measurementData && !loading) {
-      loadMeasurementData();
+      loadPreAggregatedData();
     }
   }
 
@@ -136,7 +136,7 @@ if (toggle && panel) {
     }
   }
 
-  async function loadMeasurementData() {
+  async function loadPreAggregatedData() {
     loading = true;
     showSpinner();
 
@@ -149,11 +149,11 @@ if (toggle && panel) {
         return;
       }
       const json = await response.json();
-      if (json.found === false || !json.commits) {
+      if (json.found === false || !json.weeklyCommitData) {
         showSpinner("No data available");
         return;
       }
-      measurementData = json as MeasurementData;
+      measurementData = json as PreAggregatedData;
       showBody();
     } catch {
       showSpinner("Failed to load");

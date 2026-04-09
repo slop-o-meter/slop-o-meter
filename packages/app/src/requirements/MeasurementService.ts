@@ -3,6 +3,7 @@ export interface MeasurementResult {
   history: { week: string; score: number }[];
   readmeExcerpt: string;
   measurementData: MeasurementData;
+  preAggregatedData: PreAggregatedData;
   diagnostics: MeasurementDiagnostics;
 }
 
@@ -10,9 +11,37 @@ export interface MeasurementResult {
 
 export interface MeasurementData {
   commits: MeasurementCommit[];
-  signals: MeasurementSignal[];
+  githubEvents: GithubEvent[];
   excludedHashes: ExcludedHash[];
   outlierClassifications: OutlierClassificationEntry[];
+}
+
+// --- PreAggregatedData: compact form sent to client ---
+
+export interface PreAggregatedData {
+  weeklyCommitData: WeeklyCommitData[];
+  contributorProfiles: ContributorProfileEntry[];
+  weeklySessionHours: WeeklySessionHoursEntry[];
+}
+
+export interface WeeklyCommitData {
+  week: string;
+  weightedAdditions: number;
+  weightedDeletions: number;
+  excludedAdditions: number;
+  excludedDeletions: number;
+}
+
+export interface ContributorProfileEntry {
+  author: string;
+  totalCommits: number;
+  commitShare: number;
+}
+
+export interface WeeklySessionHoursEntry {
+  author: string;
+  week: string;
+  hours: number;
 }
 
 // --- MeasurementDiagnostics: derived output for inspection ---
@@ -35,10 +64,9 @@ export interface MeasurementCommit {
   subCommitCount: number;
 }
 
-export interface MeasurementSignal {
+export interface GithubEvent {
   timestamp: string;
   author: string;
-  neighborhoodHours: number;
 }
 
 export interface MeasurementSession {
