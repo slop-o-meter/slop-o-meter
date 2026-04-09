@@ -2,6 +2,7 @@ import componentAsset from "../../componentAsset.js";
 import Spinner from "../Spinner/Spinner.js";
 import {
   tunableParamsBodyClass,
+  tunableParamsDescriptionClass,
   tunableParamsGroupClass,
   tunableParamsHeaderClass,
   tunableParamsInfoClass,
@@ -53,6 +54,18 @@ export default function TunableParams({ owner, repo }: Props) {
         <div class={tunableParamsScrollClass}>
           <div class={tunableParamsHeaderClass}>
             <span data-tunable-title>Tune Algorithm Params</span>
+            <span class={tunableParamsDescriptionClass}>
+              Adjust the scoring parameters and see how they affect the result.
+              See the{" "}
+              <a
+                href="https://github.com/slop-o-meter/slop-o-meter/blob/main/docs/slop-score-algorithm.md"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                algorithm spec
+              </a>{" "}
+              for details.
+            </span>
           </div>
 
           <div class={tunableParamsSpinnerClass} data-tunable-spinner>
