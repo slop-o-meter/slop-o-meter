@@ -31,7 +31,11 @@ export default class GitMeasurementService implements MeasurementService {
 
   async measure(owner: string, repo: string): Promise<MeasurementResult> {
     for (const segment of [owner, repo]) {
-      if (!SAFE_PATH_SEGMENT.test(segment)) {
+      if (
+        !SAFE_PATH_SEGMENT.test(segment) ||
+        segment === "." ||
+        segment === ".."
+      ) {
         throw new Error(`Invalid path segment: ${segment}`);
       }
     }
