@@ -9,7 +9,7 @@ const SAFE_PATH_SEGMENT = /^[a-zA-Z0-9._-]+$/;
 
 function validateSegment(value: string): string {
   const lower = value.toLowerCase();
-  if (!SAFE_PATH_SEGMENT.test(lower)) {
+  if (!SAFE_PATH_SEGMENT.test(lower) || lower === "." || lower === "..") {
     throw new HTTPException(400, { message: "Invalid owner or repo name" });
   }
   return lower;
