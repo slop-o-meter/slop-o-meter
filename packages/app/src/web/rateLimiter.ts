@@ -46,9 +46,23 @@ export default function rateLimiter({
 }
 
 function getClientIp(context: Context): string {
+  // CloudFront-Viewer-Address is set by CloudFront itself and cannot be
+  // spoofed by the client. Prefer it over X-Forwarded-For, which is trivially
+  // spoofable (attackers can prepend arbitrary IPs to bypass rate limiting).
+  const viewerAddress = context.req.header("cloudfront-viewer-address");
+  if (viewerAddress) {
+    // Format is "ip:port" — strip the port
+    return viewerAddress.split(":")[0]!.trim();
+  }
+
+  // Fallback: use the *last* entry in X-Forwarded-For. CloudFront appends
+  // the real client IP, so the rightmost IP is the most trustworthy.
+  // Previously this used the *first* entry, which allowed attackers to
+  // bypass rate limiting by setting an arbitrary X-Forwarded-For header.
   const forwarded = context.req.header("x-forwarded-for");
   if (forwarded) {
-    return forwarded.split(",")[0]!.trim();
+    const parts = forwarded.split(",");
+    return parts[parts.length - 1]!.trim();
   }
   return context.req.header("x-real-ip") ?? "unknown";
 }
