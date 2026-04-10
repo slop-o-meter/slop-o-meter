@@ -26,8 +26,9 @@ export default function rateLimiter({
   return async (context: Context, next: Next) => {
     const clientIp = getClientIp(context);
     const now = Date.now();
+    const key = `rate-limits/${sanitizeIpForKey(clientIp)}.json`;
 
-    const record = await readRecord(s3Client, bucketName, clientIp);
+    const { record, etag } = await readRecord(s3Client, bucketName, key);
     const recentTimestamps = record.timestamps.filter(
       (t) => now - t < windowMs,
     );
@@ -37,9 +38,15 @@ export default function rateLimiter({
     }
 
     recentTimestamps.push(now);
-    await writeRecord(s3Client, bucketName, clientIp, {
+    const written = await writeRecord(s3Client, bucketName, key, etag, {
       timestamps: recentTimestamps,
     });
+
+    // If the conditional write failed, another concurrent request modified
+    // the record first. Reject this request as rate-limited to be safe.
+    if (!written) {
+      throw new HTTPException(429, { message: "Too many requests" });
+    }
 
     await next();
   };
@@ -71,23 +78,31 @@ function sanitizeIpForKey(ip: string): string {
   return ip.replace(/[^a-zA-Z0-9.-]/g, "_");
 }
 
+interface ReadResult {
+  record: RateLimitRecord;
+  etag: string | null;
+}
+
 async function readRecord(
   s3Client: S3Client,
   bucketName: string,
-  ip: string,
-): Promise<RateLimitRecord> {
+  key: string,
+): Promise<ReadResult> {
   try {
     const result = await s3Client.send(
       new GetObjectCommand({
         Bucket: bucketName,
-        Key: `rate-limits/${sanitizeIpForKey(ip)}.json`,
+        Key: key,
       }),
     );
     const text = await result.Body!.transformToString();
-    return JSON.parse(text) as RateLimitRecord;
+    return {
+      record: JSON.parse(text) as RateLimitRecord,
+      etag: result.ETag ?? null,
+    };
   } catch (error: any) {
     if (error.name === "NoSuchKey") {
-      return { timestamps: [] };
+      return { record: { timestamps: [] }, etag: null };
     }
     throw error;
   }
@@ -96,15 +111,32 @@ async function readRecord(
 async function writeRecord(
   s3Client: S3Client,
   bucketName: string,
-  ip: string,
+  key: string,
+  etag: string | null,
   record: RateLimitRecord,
-): Promise<void> {
-  await s3Client.send(
-    new PutObjectCommand({
-      Bucket: bucketName,
-      Key: `rate-limits/${sanitizeIpForKey(ip)}.json`,
-      Body: JSON.stringify(record),
-      ContentType: "application/json",
-    }),
-  );
+): Promise<boolean> {
+  try {
+    await s3Client.send(
+      new PutObjectCommand({
+        Bucket: bucketName,
+        Key: key,
+        Body: JSON.stringify(record),
+        ContentType: "application/json",
+        // Conditional write: if we read an existing record, only overwrite if
+        // it hasn't changed (IfMatch). If the record was new, only create if
+        // no one else created it first (IfNoneMatch).
+        ...(etag ? { IfMatch: etag } : { IfNoneMatch: "*" }),
+      }),
+    );
+    return true;
+  } catch (error: any) {
+    if (
+      error.name === "PreconditionFailed" ||
+      error.name === "ConditionalCheckFailed" ||
+      error.$metadata?.httpStatusCode === 412
+    ) {
+      return false;
+    }
+    throw error;
+  }
 }
