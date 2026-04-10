@@ -131,15 +131,18 @@ function RunningView({ project }: { project: Project }) {
 }
 
 function ErrorView({ errorReason }: { errorReason: string | null }) {
+  const isRetryable = !errorReason?.includes("too large");
   return (
     <div class={errorViewClass}>
       <p class={errorViewStatusClass}>
         {errorReason ? `${errorReason}.` : "Measurement failed."}
       </p>
       <div class={errorViewActionsClass}>
-        <button class={actionButtonClass} type="button" data-action="measure">
-          Retry
-        </button>
+        {isRetryable ? (
+          <button class={actionButtonClass} type="button" data-action="measure">
+            Retry
+          </button>
+        ) : null}
         <a href="/" class={actionButtonClass}>
           Try other repo
         </a>

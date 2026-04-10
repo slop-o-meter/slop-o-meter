@@ -40,11 +40,10 @@ export const notMeasuredViewClass = css`
 
 export const notMeasuredCommentClass = css`
   font-family: var(--mono);
-  font-size: 0.85rem;
-  line-height: 1.6;
+  font-size: 1.35rem;
   color: var(--brown-mid);
-  max-width: 480px;
-  margin: 0 auto 2rem;
+  text-align: center;
+  margin-bottom: 1rem;
 `;
 
 export const runningViewClass = css`
@@ -99,8 +98,9 @@ export const errorViewActionsClass = css`
 
 export const errorViewStatusClass = css`
   font-family: var(--mono);
-  font-size: 0.85rem;
+  font-size: 1.35rem;
   color: var(--level-5);
+  text-align: center;
   margin-bottom: 1rem;
 `;
 
