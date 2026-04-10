@@ -12,6 +12,7 @@ export type { ProgressPhase };
 
 const SAFE_PATH_SEGMENT = /^[a-zA-Z0-9._-]+$/;
 const MAX_REPO_SIZE_MB = 1024;
+const MAX_COMMIT_COUNT = 50_000;
 
 export default class GitMeasurementService implements MeasurementService {
   constructor(
@@ -40,13 +41,19 @@ export default class GitMeasurementService implements MeasurementService {
       }
     }
 
-    const repoSizeKb = await this.fetchRepoSizeKb(owner, repo);
-    await this.options.onRepoMeta?.({ sizeKb: repoSizeKb });
+    const repoMeta = await this.fetchRepoMeta(owner, repo);
+    await this.options.onRepoMeta?.({ sizeKb: repoMeta.sizeKb });
 
-    const repoSizeMb = repoSizeKb / 1024;
+    const repoSizeMb = repoMeta.sizeKb / 1024;
     if (repoSizeMb > MAX_REPO_SIZE_MB) {
       throw new Error(
         `Repository ${owner}/${repo} is too large (${Math.round(repoSizeMb)} MB, limit is ${MAX_REPO_SIZE_MB} MB)`,
+      );
+    }
+
+    if (repoMeta.commitCount > MAX_COMMIT_COUNT) {
+      throw new Error(
+        `Repository ${owner}/${repo} is too large (${repoMeta.commitCount} commits, limit is ${MAX_COMMIT_COUNT})`,
       );
     }
 
@@ -110,24 +117,53 @@ export default class GitMeasurementService implements MeasurementService {
     }
   }
 
-  private async fetchRepoSizeKb(owner: string, repo: string): Promise<number> {
-    const url = `https://api.github.com/repos/${owner}/${repo}`;
+  private async fetchRepoMeta(
+    owner: string,
+    repo: string,
+  ): Promise<{ sizeKb: number; commitCount: number }> {
     const baseHeaders = {
       Accept: "application/vnd.github.v3+json",
       "User-Agent": "slop-o-meter",
     };
 
+    const authHeaders = {
+      ...baseHeaders,
+      Authorization: `Bearer ${this.options.githubToken}`,
+    };
+
+    const repoData = await this.githubApiFetch(
+      `https://api.github.com/repos/${owner}/${repo}`,
+      authHeaders,
+      baseHeaders,
+    );
+
+    const defaultBranch = (repoData as { default_branch: string })
+      .default_branch;
+    const commitsResponse = await this.githubApiFetch(
+      `https://api.github.com/repos/${owner}/${repo}/commits?sha=${defaultBranch}&per_page=1`,
+      authHeaders,
+      baseHeaders,
+      true,
+    );
+
+    return {
+      sizeKb: (repoData as { size: number }).size,
+      commitCount: commitsResponse as number,
+    };
+  }
+
+  private async githubApiFetch(
+    url: string,
+    authHeaders: Record<string, string>,
+    fallbackHeaders: Record<string, string>,
+    returnLastPage?: boolean,
+  ): Promise<unknown> {
     // Try authenticated first (higher rate limit), fall back to
     // unauthenticated for orgs that block the token (e.g. PAT lifetime
     // policies on public repos).
-    let response = await fetch(url, {
-      headers: {
-        ...baseHeaders,
-        Authorization: `Bearer ${this.options.githubToken}`,
-      },
-    });
+    let response = await fetch(url, { headers: authHeaders });
     if (response.status === 403) {
-      response = await fetch(url, { headers: baseHeaders });
+      response = await fetch(url, { headers: fallbackHeaders });
     }
 
     if (!response.ok) {
@@ -135,7 +171,13 @@ export default class GitMeasurementService implements MeasurementService {
         `GitHub API request failed (${response.status}): ${response.statusText}`,
       );
     }
-    const data = (await response.json()) as { size: number };
-    return data.size;
+
+    if (returnLastPage) {
+      const linkHeader = response.headers.get("link") ?? "";
+      const lastPageMatch = linkHeader.match(/page=(\d+)>;\s*rel="last"/);
+      return lastPageMatch?.[1] ? Number.parseInt(lastPageMatch[1], 10) : 1;
+    }
+
+    return response.json();
   }
 }
