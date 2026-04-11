@@ -140,7 +140,7 @@ export default class GitMeasurementService implements MeasurementService {
     const defaultBranch = (repoData as { default_branch: string })
       .default_branch;
     const commitsResponse = await this.githubApiFetch(
-      `https://api.github.com/repos/${owner}/${repo}/commits?sha=${defaultBranch}&per_page=1`,
+      `https://api.github.com/repos/${owner}/${repo}/commits?sha=${encodeURIComponent(defaultBranch)}&per_page=1`,
       authHeaders,
       baseHeaders,
       true,
