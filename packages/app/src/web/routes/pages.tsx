@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
+import HIGHLIGHTED_PROJECTS from "../../highlightedProjects.js";
 import Layout from "../ui/components/Layout/Layout.js";
-import HIGHLIGHTED_PROJECTS from "../ui/data/highlightedProjects.js";
 import BannerPage from "../ui/pages/BannerPage/BannerPage.js";
 import HomePage from "../ui/pages/HomePage/HomePage.js";
 import ProjectPage from "../ui/pages/ProjectPage/ProjectPage.js";

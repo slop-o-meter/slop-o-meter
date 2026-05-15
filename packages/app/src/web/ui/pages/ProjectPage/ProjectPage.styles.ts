@@ -104,6 +104,15 @@ export const errorViewStatusClass = css`
   margin-bottom: 1rem;
 `;
 
+export const errorBannerClass = css`
+  font-family: var(--mono);
+  font-size: 0.95rem;
+  color: var(--level-5);
+  text-align: center;
+  margin-bottom: 1rem;
+  max-width: 460px;
+`;
+
 export const githubLinkClass = css`
   display: inline-flex;
   align-items: center;
