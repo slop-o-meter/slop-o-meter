@@ -1,6 +1,7 @@
 import { lstat, mkdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { isHighlightedProject } from "../../highlightedProjects.js";
 import type {
   MeasurementResult,
   MeasurementService,
@@ -44,14 +45,15 @@ export default class GitMeasurementService implements MeasurementService {
     const repoMeta = await this.fetchRepoMeta(owner, repo);
     await this.options.onRepoMeta?.({ sizeKb: repoMeta.sizeKb });
 
+    const isHighlighted = isHighlightedProject(owner, repo);
     const repoSizeMb = repoMeta.sizeKb / 1024;
-    if (repoSizeMb > MAX_REPO_SIZE_MB) {
+    if (!isHighlighted && repoSizeMb > MAX_REPO_SIZE_MB) {
       throw new Error(
         `Repository ${owner}/${repo} is too large (${Math.round(repoSizeMb)} MB, limit is ${MAX_REPO_SIZE_MB} MB)`,
       );
     }
 
-    if (repoMeta.commitCount > MAX_COMMIT_COUNT) {
+    if (!isHighlighted && repoMeta.commitCount > MAX_COMMIT_COUNT) {
       throw new Error(
         `Repository ${owner}/${repo} is too large (${repoMeta.commitCount} commits, limit is ${MAX_COMMIT_COUNT})`,
       );

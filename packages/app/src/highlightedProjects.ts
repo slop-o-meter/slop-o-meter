@@ -10,4 +10,10 @@ const HIGHLIGHTED_PROJECTS = [
   { owner: "vuejs", repo: "core" },
 ] as const;
 
+export function isHighlightedProject(owner: string, repo: string): boolean {
+  return HIGHLIGHTED_PROJECTS.some(
+    (project) => project.owner === owner && project.repo === repo,
+  );
+}
+
 export default HIGHLIGHTED_PROJECTS;

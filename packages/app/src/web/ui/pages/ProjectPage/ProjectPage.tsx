@@ -8,6 +8,7 @@ import TunableParams from "../../components/TunableParams/TunableParams.js";
 import { scoreToDisplay, scoreToLevel } from "../../utils/scoring.js";
 import {
   actionButtonClass,
+  errorBannerClass,
   githubLinkClass,
   measurementViewCardSectionClass,
   measurementViewChartsSectionClass,
@@ -130,8 +131,12 @@ function RunningView({ project }: { project: Project }) {
   );
 }
 
+function isRetryableError(errorReason: string | null): boolean {
+  return !errorReason?.includes("too large");
+}
+
 function ErrorView({ errorReason }: { errorReason: string | null }) {
-  const isRetryable = !errorReason?.includes("too large");
+  const isRetryable = isRetryableError(errorReason);
   return (
     <div class={errorViewClass}>
       <p class={errorViewStatusClass}>
@@ -151,22 +156,39 @@ function ErrorView({ errorReason }: { errorReason: string | null }) {
   );
 }
 
-function canRemeasure(lastMeasuredAt: string | null): boolean {
-  if (!lastMeasuredAt) {
+function canRemeasure(project: Project): boolean {
+  if (
+    project.measurementStatus === "Error" &&
+    !isRetryableError(project.errorReason)
+  ) {
+    return false;
+  }
+  if (!project.lastMeasuredAt) {
     return true;
   }
-  return !DateTime.fromISO(lastMeasuredAt).hasSame(DateTime.utc(), "week");
+  return !DateTime.fromISO(project.lastMeasuredAt).hasSame(
+    DateTime.utc(),
+    "week",
+  );
 }
 
 function MeasurementView({ project }: { project: Project }) {
   const measurement = project.measurement!;
   const level = scoreToLevel(measurement.currentScore);
   const displayScore = scoreToDisplay(measurement.currentScore);
+  const hasRecentError = project.measurementStatus === "Error";
 
   return (
     <>
       <div class={measurementViewClass}>
         <div class={measurementViewCardSectionClass}>
+          {hasRecentError ? (
+            <p class={errorBannerClass}>
+              {project.errorReason
+                ? `Latest re-measure failed: ${project.errorReason}.`
+                : "Latest re-measure failed."}
+            </p>
+          ) : null}
           <ProjectCard
             repo={`${project.owner}/${project.repo}`}
             level={level}
@@ -174,7 +196,7 @@ function MeasurementView({ project }: { project: Project }) {
             comment={measurement.comment}
             width={460}
           />
-          {canRemeasure(project.lastMeasuredAt) ? (
+          {canRemeasure(project) ? (
             <button
               class={actionButtonClass}
               type="button"
