@@ -6,6 +6,7 @@ import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as lambdaEventSources from "aws-cdk-lib/aws-lambda-event-sources";
+import * as logs from "aws-cdk-lib/aws-logs";
 import * as route53 from "aws-cdk-lib/aws-route53";
 import * as route53Targets from "aws-cdk-lib/aws-route53-targets";
 import * as s3 from "aws-cdk-lib/aws-s3";
@@ -100,6 +101,13 @@ export default class SlopOMeterStack extends cdk.Stack {
       environment: environmentVariables,
     });
 
+    if (stage !== "production") {
+      new logs.LogGroup(this, "HttpHandlerLogGroup", {
+        logGroupName: `/aws/lambda/${httpHandler.functionName}`,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+      });
+    }
+
     const httpFunctionUrl = httpHandler.addFunctionUrl({
       authType: lambda.FunctionUrlAuthType.NONE,
     });
@@ -128,6 +136,13 @@ export default class SlopOMeterStack extends cdk.Stack {
         environment: environmentVariables,
       },
     );
+
+    if (stage !== "production") {
+      new logs.LogGroup(this, "WorkerHandlerLogGroup", {
+        logGroupName: `/aws/lambda/${workerHandler.functionName}`,
+        removalPolicy: cdk.RemovalPolicy.DESTROY,
+      });
+    }
 
     dataBucket.grantReadWrite(workerHandler, "projects/*");
     dataBucket.grantReadWrite(workerHandler, "cache/*");

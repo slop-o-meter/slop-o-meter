@@ -117,4 +117,8 @@ jobs:
       - name: Build
         run: yarn build
       - name: Destroy
+        if: always()
         run: yarn workspace @slop-o-meter/infra cdk destroy --all --context stage=pr-${{ github.event.pull_request.number }} --context hostedZoneId=${{ vars.HOSTED_ZONE_ID }} --force
+      - name: Cleanup preview leftovers
+        if: always()
+        run: yarn workspace @slop-o-meter/infra cleanup-preview-resources pr-${{ github.event.pull_request.number }} ${{ vars.HOSTED_ZONE_ID }}

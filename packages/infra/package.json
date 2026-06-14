@@ -7,6 +7,7 @@
     "synth": "cdk synth",
     "diff": "cdk diff",
     "deploy": "cdk deploy --all --require-approval never",
+    "cleanup-preview-resources": "bash scripts/cleanup-preview-resources.sh",
     "cdk": "cdk"
   },
   "dependencies": {
