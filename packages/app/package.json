@@ -10,23 +10,23 @@
     "build": "vite build --config vite.config.build.ts && BUILD_TARGET=client vite build --config vite.config.build.ts && BUILD_TARGET=worker vite build --config vite.config.build.ts"
   },
   "dependencies": {
-    "@aws-sdk/client-cloudfront": "^3.1024.0",
-    "@aws-sdk/client-s3": "^3.1024.0",
-    "@aws-sdk/client-sqs": "^3.1024.0",
-    "@aws-sdk/client-ssm": "^3.1024.0",
-    "hono": "^4.12.10",
+    "@aws-sdk/client-cloudfront": "^3.1068.0",
+    "@aws-sdk/client-s3": "^3.1068.0",
+    "@aws-sdk/client-sqs": "^3.1068.0",
+    "@aws-sdk/client-ssm": "^3.1068.0",
+    "hono": "^4.12.25",
     "ignore": "^7.0.5",
     "luxon": "^3.7.2",
     "smol-toml": "^1.6.1",
-    "yaml": "^2.8.3"
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
-    "@hono/node-server": "^1.19.12",
-    "@hono/vite-dev-server": "^0.25.1",
+    "@hono/node-server": "^2.0.4",
+    "@hono/vite-dev-server": "^0.26.0",
     "@types/luxon": "^3.7.1",
-    "@types/node": "^25.5.2",
-    "tsx": "^4.21.0",
-    "vite": "^8.0.3",
-    "vitest": "^4.1.2"
+    "@types/node": "^25.9.3",
+    "tsx": "^4.22.4",
+    "vite": "^8.0.16",
+    "vitest": "^4.1.8"
   }
 }
